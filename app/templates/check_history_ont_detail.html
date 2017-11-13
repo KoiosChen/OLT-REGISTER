@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block title %}Founder Shanghai SNOC{% endblock %}
+
+{% block page_content %}
+<div class="page-header">
+<h3>ONU历史记录查询:</h3>
+<li>此功能用于查找已经注册的ONU信息及其光功率情况</li>
+<li>请填写用户ONU的MAC地址,格式为XXXX-XXXX-XXXX, 例如0007-2680-3c83</li>
+<br><br>
+</div>
+{{ wtf.quick_form(form) }}
+
+<p style="font-size:22px;">
+    <br>
+    <p>{% if dict_result %}
+            <p>机房名: {{ dict_result.machine_room }}</p>
+            <p>OLT NAME:    {{ dict_result.olt_name }}</p>
+            <p>MAC: {{ dict_result.mac }}</p>
+            <p>f/s/p:  {{ dict_result.f }}/{{ dict_result.s }}/{{ dict_result.p }}</p>
+            <p>ont id:  {{ dict_result.ont_id}}</p>
+            <p>rx_optical_power:    {{ dict_result.rx_optical_power }}</p>
+            <p>olt_rx_ont_optical_power:    {{ dict_result.olt_rx_ont_optical_power }}</p>
+            <p>last_down_time:  {{ dict_result.last_down_time }}</p>
+            <p>last_down_cause: {{ dict_result.last_down_cause }}</p>
+        {% endif %}
+    </p>
+</div>
+{% endblock%}

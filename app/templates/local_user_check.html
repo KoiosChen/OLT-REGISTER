@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+{% import "_macros.html" as macros %}
+
+
+{% block page_content %}
+<h1>用户信息</h1>
+<div>
+    <div class="input-group col-md-4" style="margin-top: 0px; positon:relative;float: left;margin: 1ex">
+        <input type="text" class="form-control" placeholder="请输入用户名" id="search_username">
+    </div>
+    <div class="input-group col-md-4" style="margin-top: 0px; positon:relative;float: left;margin: 1ex">
+        <input type="text" class="form-control" placeholder="请输入邮箱" id="search_mail">
+    </div>
+</div>
+
+<button class="btn btn-info btn-search" style="float: right;margin: 1ex" id="search" onclick="search()">查找</button>
+
+
+<table id="user_table" class="display">
+    <thead>
+    <tr>
+        <th>编号</th>
+        <th>邮箱(账户)</th>
+        <th>姓名</th>
+        <th>大区</th>
+        <th>权限</th>
+        <th>编辑</th>
+        <th>删除</th>
+    </tr>
+    </thead>
+    <tbody style="color:sienna" id="user_table_body">
+    </tbody>
+</table>
+
+<!-- 模态框（Modal） -->
+<div class="modal fade" id="update" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+                <h4 class="modal-title" id="myModalLabel">修改用户信息</h4>
+            </div>
+            <div class="modal-body">
+                <p>用户ID: <input type="text" name="id" id="id" readonly="true"/></p>
+                {% if current_user.is_snoc() %}
+                <p>{{ wtf.form_field(modal_form.username, id='username') }}</p>
+                {% endif %}
+                <p>{{ wtf.form_field(modal_form.password, id='pass') }}</p>
+                <p>{{ wtf.form_field(modal_form.workorder_login_name, id='workorder')}}</p>
+                {% if current_user.is_snoc() %}
+                <p>{{ wtf.form_field(modal_form.role, id='role') }}</p>
+                <p>{{ wtf.form_field(modal_form.area, id='area') }}</p>
+                <p>{{ wtf.form_field(modal_form.duty, id='duty') }}</p>
+                {% endif %}
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" onclick="update()" data-dismiss="modal">提交更改</button>
+            </div>
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal -->
+</div>
+<!-- 模态框（Modal）end -->
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+    <script type="text/javascript" charset="utf8" src="http://code.jquery.com/jquery-1.10.2.min.js"></script>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='jPages-master/css/jPages.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='jPages-master/css/animate.css') }}">
+    <script src="static/jPages-master/js/jPages.min.js"></script>
+    <!-- DataTables -->
+    <script type="text/javascript" charset="utf8"
+            src="http://cdn.datatables.net/1.10.15/js/jquery.dataTables.js"></script>
+    <script>
+        <!--第三步初始化Datatables-->
+        var lang =  {
+                "sProcessing": "处理中...",
+                "sLengthMenu": "显示 _MENU_ 项结果",
+                "sZeroRecords": "没有匹配结果",
+                "sInfo": "显示第 _START_ 至 _END_ 项结果，共 _TOTAL_ 项",
+                "sInfoEmpty": "显示第 0 至 0 项结果，共 0 项",
+                "sInfoFiltered": "(由 _MAX_ 项结果过滤)",
+                "sInfoPostFix": "",
+                "sSearch": "搜索:",
+                "sUrl": "",
+                "sEmptyTable": "表中数据为空",
+                "sLoadingRecords": "载入中...",
+                "sInfoThousands": ",",
+                "oPaginate": {
+                    "sFirst": "首页",
+                    "sPrevious": "上页",
+                    "sNext": "下页",
+                    "sLast": "末页"
+                },
+                "oAria": {
+                    "sSortAscending": ": 以升序排列此列",
+                    "sSortDescending": ": 以降序排列此列"
+                }
+            };
+
+        var table = $('#user_table').DataTable({
+            "searching": false,
+            "serverSide": true,
+            "processing": true,
+            "ordering": false,
+            "destroy": true,
+            "lengthChange": false,
+            "ajax": {
+                url: '/local_user_check',
+                type: 'POST'
+            },
+            language:lang
+        });
+
+        $(document).ready(function () {
+            table.draw()
+        });
+
+        function search() {
+            var username = $('#search_username').val();
+            var mail = $('#search_mail').val();
+            var my_data = {'username': username, 'mail': mail}
+            table.settings()[0].ajax.data = my_data
+            table.ajax.reload()
+        }
+        function editInfo(obj) {
+            $('#id').val(obj);
+            $('#update').modal('show');
+        }
+        //提交更改
+        function update() {
+            //获取模态框数据
+            var pass = $('#pass').val();
+            var id = $('#id').val();
+            var username = $('#username').val();
+            var role = $('#role').val();
+            var area = $('#area').val();
+            var duty = $('#duty').val();
+            if (role == '0') {
+                role = ''
+            }
+            if (area == '0') {
+                area = ''
+            }
+            if (duty == '0') {
+                duty = ''
+            }
+            var workorder = $('#workorder').val();
+            var flash_message = {1: '用户信息修改成功', 2: '工单平台账号已存在', 3: '无权修改用户信息', 4: '未修改信息', 5: '工单平台账号已存在'}
+            $.ajax({
+                type: "post",
+                url: "userinfo_update",
+                data: JSON.stringify({
+                    "pass": pass,
+                    "id": id,
+                    "username": username,
+                    "role": role,
+                    "area": area,
+                    "duty": duty,
+                    "workorder": workorder
+                }),
+                dataType: 'text',
+                contentType: "application/json; charset=utf-8",
+                success: function (msg) {
+                    var msg_json = JSON.parse(msg);
+                    toastr.info(flash_message[msg_json['status']]);
+                    table.draw(false)
+                }
+            });
+        }
+
+        function delete_user(id) {
+            var flash_message = {1: '不能删除自己', 2: '你没有权限删除他人账户', 3: '用户删除成功', 4: '用户删除失败'}
+            if (confirm("确定要删除该信息吗？删除将不能恢复！"))
+                $.ajax({
+                    type: "post",
+                    url: "user_delete",
+                    data: JSON.stringify({"id": id}),
+                    dataType: 'text',
+                    contentType: "application/json; charset=utf-8",
+                    success: function (msg) {
+                        var msg_json = JSON.parse(msg);
+                        toastr.info(flash_message[msg_json.status]);
+                        window.location.reload();
+                    }
+                });
+        }
+
+        $(function () {
+            //参数设置，若用默认值可以省略以下面代
+            toastr.options = {
+                "closeButton": true, //是否显示关闭按钮
+                "debug": false, //是否使用debug模式
+                "progressBar": false,
+                "positionClass": "toast-bottom-center",//弹出窗的位置
+                "showDuration": "300",//显示的动画时间
+                "hideDuration": "1000",//消失的动画时间
+                "timeOut": "5000", //展现时间
+                "extendedTimeOut": "1000",//加长展示时间
+                "showEasing": "swing",//显示时的动画缓冲方式
+                "hideEasing": "linear",//消失时的动画缓冲方式
+                "showMethod": "fadeIn",//显示时的动画方式
+                "hideMethod": "fadeOut" //消失时的动画方式
+            };
+        })
+    </script>
+
+{% endblock %}

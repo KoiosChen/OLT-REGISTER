@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block title %}Founder Shanghai SNOC{% endblock %}
+
+
+{% block page_content %}
+<div class="page-header">
+<h3>说明:</h3>
+<li>此功能用于自动注册ONU</li>
+<li>请选择用户社区对应的机房</li>
+<li>请确认光猫及光纤对接正确, 工作灯闪烁正常(绿色)</li>
+<li>请填写用户ONU的MAC地址,格式为XXXX-XXXX-XXXX,例如0007-2680-3C83</li>
+<br><br>
+</div>
+
+
+{{ wtf.quick_form(form, id='loading') }}
+
+{% endblock%}
+
+{%  block scripts %}
+    <link href="{{ url_for('static', filename='showLoading.css') }}" rel="stylesheet" media="screen" />
+    <script type="text/javascript" src="{{ url_for('static', filename='jquery.showLoading.min.js') }}"></script>
+    <script type="text/javascript">
+        $('#loading').submit(function () {
+                jQuery('#loading').showLoading();
+       });
+
+    </script>
+
+{%  endblock %}

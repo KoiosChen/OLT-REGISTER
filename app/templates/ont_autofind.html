@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block title %}Founder Shanghai SNOC{% endblock %}
+
+{% block page_content %}
+<div class="page-header">
+    <h3>ONU自动发现功能:</h3>
+    <li>此功能用于自动发现未注册的光猫</li>
+    <li>若不能自动发现, 请检查光猫设备及相关线路</li>
+    <li>网管电话: 021-80251595</li>
+</div>
+
+{{ wtf.quick_form(form, id='loading') }}
+
+<div style="font-size:12px;">
+    <h3>{%if result %}{% for key, value in result.items() %}
+            <div><font size="2">{{ key }}</font></div>
+            <div>
+                {% for line in value %}
+                <p><font size="2">{{ line }}</font></p>
+                {%  endfor %}
+            </div>
+        {% endfor %}
+        {% endif %}
+    </h3>
+</div>
+
+{% endblock%}
+
+
+{%  block scripts %}
+    <link href="{{ url_for('static', filename='showLoading.css') }}" rel="stylesheet" media="screen" />
+    <script type="text/javascript" src="{{ url_for('static', filename='jquery.showLoading.min.js') }}"></script>
+    <script type="text/javascript">
+        $('#loading').submit(function () {
+                jQuery('#loading').showLoading();
+       });
+
+    </script>
+
+{%  endblock %}

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block title %}Founder Shanghai SNOC{% endblock %}
+
+{% block page_content %}
+{{ wtf.quick_form(form, id='alertTest') }}
+
+<br>
+<br>
+<br>
+
+<form id='alter_form' action="do_alter_int" method="get" style="height: 100%">
+    {%if all_ont_tobe_deleted %}
+        {% if not altert_matched_onu_flag %}
+            <div style="float:left;width: 40%;height: 100%;border:1px solid red; ">
+                    <h4>迁移源机房ONU</h4>
+
+                    {% for i in all_ont_tobe_deleted %}
+                        <h5>{{ machine_room[i[0][0]] }} {{ i[0][1] }}/{{ i[0][2] }}/{{ i[0][3] }} to  {{ machine_room[i[1][0]] }} {{ i[1][1] }}/{{ i[1][2] }}/{{ i[1][3] }}:</h5>
+                        {% for ii in all_ont_tobe_deleted[i] %}
+                            <li style="display: inline-block; height: 20px; width: 90%;line-height: 50px;margin:2px 0;">
+                                <input  style="margin-right: 15px" type="checkbox" name="all_ont_tobe_deleted" value="{ '{{ ii[5] }}': {'src_dst':{{ i }}, 'ont_info':{{ ii }} }}"/>
+                                 {{ ii[5] }}
+                            </li>
+                        {% endfor %}
+                    {% endfor %}
+                    <br>
+                    <li style="display: inline-block; height: 20px; width: 90%;line-height: 50px;margin:2px 0;">
+                        <input style="margin-right: 15px" type="checkbox" name="sel_all_ont_tobe_deleted" id='all_source_ont' onclick="selectAll('all_ont_tobe_deleted', this.id)" value="全选/全不选"/>全选
+                    </li>
+                    <div  style="background-color:#ffc40d;clear: both;text-align: center;border-radius: 6px;"><input type="submit" value="提交更换PON口"></div>
+            </div>
+        {% endif %}
+
+
+        <div style="float: right;width: 48%;height: 100%;border:1px solid red; ">
+            <h4>迁移匹配到的ONU</h4>
+                {% for i in ont_delete_list %}
+                   <li style="display: inline-block; height: 20px; width: 90%;line-height: 50px;margin:2px 0;">
+                       <input  style="margin-right: 15px" type="checkbox" name="matched_ont_tobe_deleted" value="{{ i }}" />
+
+                           {{ i[6] }} from {{ machine_room[i[0]] }} {{ i[1] }}/{{ i[2] }}/{{ i[3] }} ont_id {{ i[4] }} to {{ machine_room[i[5][0]] }}{{ i[5][1] }}/{{ i[5][2] }}/{{ i[5][3] }}
+
+                   </li>
+                {% endfor %}
+                <br>
+                <li style="display: inline-block; height: 20px; width: 90%;line-height: 50px;margin:2px 0;">
+                    <input style="margin-right: 15px" type="checkbox" name="matched_ont_tobe_deleted" id='all_matched_ont' onclick="selectAll('matched_ont_tobe_deleted', this.id)" value="全选/全不选"/>全选
+                </li>
+                <div  style="background-color:#ffc40d;clear: both;text-align: center;border-radius: 6px;"><input type="submit" value="提交更换PON口"></div>
+
+        </div>
+    {% endif %}
+</form>
+
+{% endblock%}
+
+
+{%  block scripts %}
+    <link href="{{ url_for('static', filename='showLoading.css') }}" rel="stylesheet" media="screen" />
+    <script type="text/javascript" src="{{ url_for('static', filename='jquery.showLoading.min.js') }}"></script>
+
+    <script>
+        $('#alter_form').submit(function () {
+                    jQuery('#alter_form').showLoading();
+                }
+
+        );
+
+        $('#alertTest').submit(function () {
+                jQuery('#alertTest').showLoading();
+        });
+
+        function selectAll(selid, objId){
+            var obj = document.getElementsByName(selid);
+              if(document.getElementById(objId).checked == false)
+              {
+              for(var i=0; i<obj.length; i++)
+              {
+                obj[i].checked=false;
+              }
+              }else
+              {
+              for(var i=0; i<obj.length; i++)
+              {
+                obj[i].checked=true;
+              }
+              }
+
+        }
+
+    </script>
+
+{%  endblock %}

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+{% import "_macros.html" as macros %}
+
+{% block title %}Founder Shanghai SNOC{% endblock %}
+
+
+{% block page_content %}
+
+{{ wtf.quick_form(form) }}
+
+<div class="page-header">
+    <h2>社区（工单平台）与机房对应关系</h2>
+        <table class="table">
+            <thead>
+                <th>编号</th>
+                <th>社区名</th>
+                <th>机房</th>
+                <th>删除</th>
+            </thead>
+            <tbody>
+                {% for o in object_list %}
+                    <tr>
+                        <td>{{ o.id }}</td>
+                        <td>{{ o.community_name }}</td>
+                        <td>{{ machine_room[o.machine_room_id] }}</td>
+                        <td><a href={{url_for('main.community_delete', community_id=o.id)}} onClick="return HTMerDel();"><img src="{{url_for('static',filename='trash.png', _external=True)}}" alt="" title="" border="0" /></a></td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+</div>
+<div class="pagination  ">
+    {{ macros.pagination_widget(pagination, '.community_machineroom_config') }}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    <script language="JavaScript" type="text/JavaScript">
+        function HTMerDel()
+        {
+            if(confirm("确定要删除该信息吗？删除将不能恢复！"))
+            return true;
+            else
+            return false;
+        }
+    </script>
+
+{% endblock %}

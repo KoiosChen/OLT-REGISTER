@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block title %}Founder Shanghai SNOC{% endblock %}
+
+
+{% block page_content %}
+<div class="page-header">
+    <h3>说明:</h3>
+    <li>此功能用于自动注册ONU</li>
+    <li>请选择用户社区对应的机房</li>
+    <li>请确认光猫及光纤对接正确, 工作灯闪烁正常(绿色)</li>
+    <li>请填写用户ONU的MAC地址,格式为XXXX-XXXX-XXXX,例如0007-2680-3C83</li>
+    <br><br>
+</div>
+
+<div class="table-responsive">
+    <table id="alarm_record_table" class="table">
+        <thead>
+        <tr>
+            <th>用户编号</th>
+            <th>用户姓名</th>
+            <th>电话</th>
+            <th>社区/门牌号</th>
+            <th>套餐</th>
+            <th>登陆账号</th>
+            <th>开户日期</th>
+            <th>到期缴费日期</th>
+            <th>状态</th>
+        </tr>
+        </thead>
+        <tbody style="color:sienna;" id="alarm_content_body">
+        <tr>
+            <td>{{ js.accountId }}</td>
+            <td>{{ js.userName }}</td>
+            <td>{{ js.mobilePhone }}</td>
+            <td style="width: 20%;">{{ js.communityName }}/{{ js.aptNo }}</td>
+            <td>{{ js.accounttype }}</td>
+            <td>{{ js.loginName }}</td>
+            <td>{{ js.dateOfOpen }}</td>
+            <td>{{ js.dateOfEnd }}</td>
+            <td>{{ js.currentStateName}}</td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+<div id="register_form">
+    <p>{{ wtf.form_field(form.machine_room_name) }}</p>
+    <p>{{ wtf.form_field(form.mac) }}</p>
+    <p>{{ wtf.form_field(form.ont_vendor) }}</p>
+    <p>{{ wtf.form_field(form.ont_model_choice) }}</p>
+    <p>{{ wtf.form_field(form.service_type) }}</p>
+
+    <button type="button" class="btn btn-primary" data-dismiss="modal" id="submit">提交注册</button>
+</div>
+
+{% endblock%}
+
+{%  block scripts %}
+{{ super() }}
+<link href="{{ url_for('static', filename='showLoading.css') }}" rel="stylesheet" media="screen"/>
+<script type="text/javascript" src="{{ url_for('static', filename='jquery.showLoading.min.js') }}"></script>
+
+<script type="text/javascript">
+
+    $('#submit').click(function () {
+        var temp = /^[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}$/;
+        if (!$('#mac').val().match(temp)) {
+            $('#mac').val('');
+            toastr.warning('MAC 输入错误')
+        }
+        else {
+            var account_id = {{ js.accountId }}
+
+            $('#register_form').showLoading();
+            $.ajax({
+                type: "post",
+                url: "regist_precheck",
+                data: {
+                    "account_id": account_id,
+                    "mac": $('#mac').val(),
+                    "machine_room_id": $("#machine_room_name").val()
+                },
+                dataType: 'html',
+                contentType: "application/x-www-form-urlencoded; charset=utf-8;",
+
+                success: function (msg) {
+                    var msg_json = JSON.parse(msg);
+                    if (msg_json['status'].match(/ok/)) {
+                        toastr.warning(msg_json['content']);
+                        $('#register_form').hideLoading();
+                    }
+                    else if (msg_json['status'].match(/fail/)) {
+                        toastr.warning("光猫未找到")
+                        $('#register_form').hideLoading();
+                    }
+                },
+                error: function (xhr, msg, e) {
+                    alert('error!!')
+                }
+            });
+        }
+    });
+
+    // toastr options
+    toastr.options = {
+        "closeButton": true, //是否显示关闭按钮
+        "debug": false, //是否使用debug模式
+        "progressBar": false,
+        "positionClass": "toast-top-center",//弹出窗的位置
+        "showDuration": "500",//显示的动画时间
+        "hideDuration": "1000",//消失的动画时间
+        "timeOut": "2000", //展现时间
+        "extendedTimeOut": "1000",//加长展示时间
+        "showEasing": "swing",//显示时的动画缓冲方式
+        "hideEasing": "linear",//消失时的动画缓冲方式
+        "showMethod": "fadeIn",//显示时的动画方式
+        "hideMethod": "fadeOut" //消失时的动画方式
+    };
+
+</script>
+
+{%  endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+
+{% block page_content %}
+    <div class="page-header">
+            <h3>ONU注册信息查询:</h3>
+            <li>日期精确到5分, 结束时间选择第二天12:00, 例如统计到2016年12月29日,则选择2016年12月30日上午12:00</li>
+    </div>
+
+    
+    <div>
+    <form action="" method="post">
+        <fieldset>
+        <div class="form-group">
+            <label for="dtp_input1" class="col-md-2 control-label">开始时间</label>
+            <div class="input-group date form_datetime col-md-3"  data-date-format="yyyy-MM-dd  HH:ii" data-link-field="dtp_input1">
+                <input class="form-control" size="16" type="text" value="" readonly name="start_time">
+                <span class="input-group-addon"><span class="glyphicon glyphicon-remove"></span></span>
+                <span class="input-group-addon"><span class="glyphicon glyphicon-th"></span></span>
+            </div>
+            <input type="hidden" id="dtp_input1" value="" /><br/>
+        </div>
+        <div class="form-group">
+                <label for="dtp_input1" class="col-md-2 control-label">结束时间</label>
+                <div class="input-group date form_datetime col-md-3"  data-date-format="yyyy-MM-dd  HH:ii" data-link-field="dtp_input2">
+                    <input class="form-control" size="16" type="text" value="" readonly name="stop_time">
+                    <span class="input-group-addon"><span class="glyphicon glyphicon-remove"></span></span>
+					<span class="input-group-addon"><span class="glyphicon glyphicon-th"></span></span>
+                </div>
+				<input type="hidden" id="dtp_input2" value="" /><br/>
+        </div>
+        {{ form.hidden_tag() }}
+        <div class="col-md-6" >
+            <p>
+                {{ wtf.form_field(form.machine_room_name) }}
+            </p>
+            <p>{{ wtf.form_field(form.fsp) }}</p>
+            <p>{{ wtf.form_field(form.cevlan) }}</p>
+            <p>{{ wtf.form_field(form.area) }}</p>
+            <p>{{ wtf.form_field(form.mac) }}</p>
+            <p>{{ wtf.form_field(form.customer_number) }}</p>
+            <p>{{ wtf.form_field(form.customer_addr) }}</p>
+            <p>{{ wtf.form_field(form.ont_model_choice) }}</p>
+            <p>{{ wtf.form_field(form.submit) }}</p>
+        </div>
+            </fieldset>
+    </form>
+    </div>
+{% endblock%}
+
+{% block scripts %}
+    {{ super() }}
+{% endblock %}

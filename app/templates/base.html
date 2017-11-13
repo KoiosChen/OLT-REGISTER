@@ -1,0 +1,149 @@
+{% extends "bootstrap/base.html" %}
+
+{% block head%}
+{{ super() }}
+    <style>
+        .error{
+            color:red;
+        }
+    </style>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <link href="{{ url_for('static', filename='bootstrap.mini.css' )}}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='bootstrap-datetimepicker.min.css' )}}" rel="stylesheet" media="screen">
+    <script type="text/javascript" src="{{ url_for('static', filename='jquery-1.8.3.min.js') }}" charset="UTF-8"></script>
+    <script type="text/javascript" src="{{ url_for('static', filename='bootstrap.min.js' )}}"></script>
+    <link href="http://cdn.bootcss.com/toastr.js/latest/css/toastr.css" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="http://cdn.datatables.net/1.10.15/css/jquery.dataTables.css">
+{% endblock %}
+
+
+{% block title %}Founder Shanghai SNOC{% endblock %}
+{% block navbar %}
+<div class="navbar navbar-inverse" role="navigation">
+         <div class="container">
+             {% if current_user.is_authenticated %}
+             <div class="navbar-header">
+                 <button type="button" class="navbar-toggle"
+                         data-toggle="collapse" data-target=".navbar-collapse">
+                     <span class="sr-only">Toggle navigation</span>
+                     <span class="icon-bar"></span>
+                     <span class="icon-bar"></span>
+                     <span class="icon-bar"></span>
+                 </button>
+                 <a class="navbar-brand" style="font-size: 16px" href="/">ONU注册</a>
+                 {% if current_user.is_snoc() %}
+                 <a class="navbar-brand" style="font-size: 16px" href="/manager_register">网管注册ONU</a>
+                 {% endif %}
+             </div>
+             <div class="navbar-collapse collapse">
+                <ul class="nav navbar-nav">
+                    <li class="dropdown" style="font-size: 16px">
+                        <a class="dropdown-toggle" href="#" data-toggle="dropdown">
+                            <span></span>
+                            查询 <strong class="caret"></strong>
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a href="/find_by_mac">ONU实时查询</a></li>
+                                <li><a href="/check_history_ont_detail">ONU历史记录查询</a></li>
+                                <li><a href="/ont_register_inspector">ONU注册记录查询</a></li>
+                                <li><a href="/olt_temp">OLT温度查询</a></li>
+                                <li><a href="/ont_autofind">自动发现ONU</a></li>
+                            </ul>
+                    </li>
+
+
+                    <li class="dropdown" style="font-size: 16px">
+                        <a class="dropdown-toggle" href="#" data-toggle="dropdown">
+                            <span></span>
+                            设置 <strong class="caret"></strong>
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a href="/local_user_check">本地用户查询</a></li>
+                                {% if current_user.is_snoc() %}
+                                <li><a href="/add_device">添加设备</a></li>
+                                <li><a href="/area_config">大区设置</a></li>
+                                <li><a href="/maintain_pevlan">维护外层VLAN</a></li>
+                                <li><a href="/manual_sync">手工同步</a></li>
+                                <li><a href="/user_register">添加用户</a></li>
+                                <li><a href="/alter_epon_interface">换PON口</a></li>
+                                <li><a href="/community_machineroom_config">社区上联机房配置</a></li>
+                                {% endif %}
+                                {% if current_user.is_administrator() %}
+                                    <li><a href="/licence_control">许可证管理</a></li>
+                                {% endif %}
+
+                            </ul>
+                    </li>
+
+
+
+                </ul>
+                <ul class="nav navbar-nav navbar-right">
+                    {% if current_user.is_authenticated %}
+                    <li><a href="{{ url_for('auth.logout') }}">Sign Out</a></li>
+                    {% else %}
+                    <li><a href="{{ url_for('auth.login') }}">Sign In</a></li>
+                    {% endif %}
+                </ul>
+             </div>
+             {% endif %}
+         </div>
+</div>
+{% endblock %}
+
+{% block content %} 
+<div class="container">
+    {% for message in get_flashed_messages() %}
+    <div class="alert alert-warning">
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+        {{ message }}
+    </div>
+    {% endfor %}
+{% block page_content %}{% endblock %} </div>
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    <script type="text/javascript" src="{{ url_for('static', filename='jquery-1.8.3.min.js') }}" charset="UTF-8"></script>
+    <script type="text/javascript" src="{{ url_for('static', filename='bootstrap.min.js' )}}"></script>
+    <script type="text/javascript" src="{{ url_for('static', filename='bootstrap-datetimepicker.js' )}}" charset="UTF-8"></script>
+    <script type="text/javascript" src="{{ url_for('static', filename='bootstrap-datetimepicker.zh-CN.js' )}}" charset="UTF-8"></script>
+    <script src="http://cdn.bootcss.com/toastr.js/latest/js/toastr.min.js"></script>
+    <script type="text/javascript">
+        $('.form_datetime').datetimepicker({
+            language:  'zh-CN',
+            weekStart: 1,
+            todayBtn:  1,
+            autoclose: 1,
+            todayHighlight: 1,
+            startView: 2,
+            forceParse: 0,
+            showMeridian: 1,
+            minuteStep: 5,
+            format: 'yyyy-mm-dd hh:ii'
+        });
+        $('.form_date').datetimepicker({
+            language:  'zh-CN',
+            weekStart: 1,
+            todayBtn:  1,
+            autoclose: 1,
+            todayHighlight: 1,
+            startView: 2,
+            minView: 2,
+            forceParse: 0
+        });
+        $('.form_time').datetimepicker({
+            language:  'zh-CN',
+            weekStart: 1,
+            todayBtn:  1,
+            autoclose: 1,
+            todayHighlight: 1,
+            startView: 1,
+            minView: 0,
+            maxView: 1,
+            forceParse: 0
+        });
+    </script>
+{% endblock %}
+

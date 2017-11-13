@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block title %}Founder Shanghai SNOC{% endblock %}
+
+{% block page_content %}
+
+<div class="page-header">
+    <h3>OLT板卡温度检测:</h3>
+    <li>此功能用于查看OLT板卡温度</li>
+    <li>若有板卡温度高于60摄氏度,请联系网管</li>
+    <li>网管电话: 021-80251595</li>
+</div>
+
+{{ wtf.quick_form(form, id='loading') }}
+
+<div style="font-size:12px;">
+    <h3>{%if result %}{% for key, value in result.items() %}
+            <div><font size="2">{{ key }}</font></div>
+            <div>
+                {% for line in value %}
+                <p><font size="2">{{ line }}</font></p>
+                {%  endfor %}
+            </div>
+        {% endfor %}
+        {% endif %}
+    </h3>
+</div>
+
+{% endblock%}
+
+
+{%  block scripts %}
+    <link href="{{ url_for('static', filename='showLoading.css') }}" rel="stylesheet" media="screen" />
+    <script type="text/javascript" src="{{ url_for('static', filename='jquery.showLoading.min.js') }}"></script>
+    <script type="text/javascript">
+        $('#loading').submit(function () {
+                jQuery('#loading').showLoading();
+       });
+
+    </script>
+
+{%  endblock %}

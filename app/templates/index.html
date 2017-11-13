@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block title %}Founder Shanghai SNOC{% endblock %}
+
+
+{% block page_content %}
+<div style="height:100px;text-align:center;width:100%;margin-top:7%; margin-left: auto;margin-right: auto">
+    <form class="cmxform" id="commentForm" method="post" action="">
+        <label for="account_id" style="float: inherit;font-size: 200%;height: 130px;">ONT自助注册</label>
+        <input type="text" class="form-control" placeholder="请输入用户ID" id="account_id" required>
+        <div>
+            <input class="submit btn btn-info btn-search col-md-3" type="submit" value="下一步" style="float:inherit;margin: 30px;">
+        </div>
+    </form>
+</div>
+{% endblock%}
+
+{%  block scripts %}
+    {{ super() }}
+    <link href="{{ url_for('static', filename='showLoading.css') }}" rel="stylesheet" media="screen" />
+    <script type="text/javascript" src="{{ url_for('static', filename='jquery.showLoading.min.js') }}"></script>
+    <script src="http://static.runoob.com/assets/jquery-validation-1.14.0/dist/jquery.validate.min.js"></script>
+    <script src="http://static.runoob.com/assets/jquery-validation-1.14.0/dist/localization/messages_zh.js"></script>
+    <script type="text/javascript">
+
+        $.validator.setDefaults({
+            submitHandler: function() {
+                $.ajax({
+                    type: "post",
+                    url: "account_search",
+                    data: {"account_id": $('#account_id').val()},
+                    dataType: 'html',
+                    contentType: "application/x-www-form-urlencoded; charset=utf-8;",
+
+                    success: function(msg) {
+                        var msg_json = JSON.parse(msg);
+                        msg_json = JSON.parse(msg_json);
+                        if (msg_json['status'].match(/OK/)) {
+                            window.location.href='ont_register_from_accountid' + '?&account_id=' + $('#account_id').val()
+                        }
+                        else {
+                            toastr.warning(msg_json['status']);
+                        }
+                    },          
+                    error: function(xhr, msg, e) {     
+                        alert('用户不存在')       
+                    } 
+                });
+            }
+        });
+        $().ready(function() {
+            $("#commentForm").validate();
+        });
+
+        // toastr options
+        toastr.options = {
+            "closeButton": true, //是否显示关闭按钮
+            "debug": false, //是否使用debug模式
+            "progressBar": false,
+            "positionClass": "toast-top-center",//弹出窗的位置
+            "showDuration": "500",//显示的动画时间
+            "hideDuration": "1000",//消失的动画时间
+            "timeOut": "2000", //展现时间
+            "extendedTimeOut": "1000",//加长展示时间
+            "showEasing": "swing",//显示时的动画缓冲方式
+            "hideEasing": "linear",//消失时的动画缓冲方式
+            "showMethod": "fadeIn",//显示时的动画方式
+            "hideMethod": "fadeOut" //消失时的动画方式
+        };
+
+    </script>
+
+{%  endblock %}

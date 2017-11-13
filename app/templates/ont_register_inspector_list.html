@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+{% import "_macros.html" as macros %}
+
+{% block page_content %}
+<div class="page-header" id="whole_page">
+    <h1>ONU注册信息</h1>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+            <th>编号</th>
+            <th>port</th>
+            <th>ONTid</th>
+            <th>VLAN</th>
+            <th>用户编号</th>
+            <th>用户地址</th>
+            <th>MAC</th>
+            <th>注册人</th>
+            <th>大区</th>
+            <th>机房</th>
+            <th>OLT</th>
+            <th>注册时间</th>
+            <!--<th>编辑</th>-->
+            <th>状态</th>
+            {% if current_user.is_manonduty() %}
+            <th>解绑</th>
+            {% endif %}
+            </thead>
+            <tbody>
+            {% for o in object_list %}
+            <tr>
+                <td>{{ o.id }}</td>
+                <td>{{ o.f }}/{{ o.s }}/{{ o.p }}</td>
+                <td>{{ o.ont_id }}</td>
+                <td>{{ o.cevlan }}</td>
+                <td>{{ o.username }}</td>
+                <td>{{ o.user_addr }}</td>
+                <td>{{ o.mac }}</td>
+                <td>{{ o.reporter_name }}</td>
+                <td>{{ area[o.reporter_group] }}</td>
+                <td>{{ device_machine[o.device_id] }}</td>
+                <td>{{ device[o.device_id] }}</td>
+                <td>{{ o.create_time }}</td>
+                <td><a data-toggle="modal" data-target="#search"
+                       onclick="editInfo('{{ o.username}}', '{{ o.mac }}', '{{ device_machine[o.device_id] }}')"><img
+                        src="{{url_for('static',filename='search.png', _external=True)}}" alt="" title=""
+                        border="0"/></a></td>
+                {% if current_user.is_manonduty() %}
+                <!-- <td><a href="#"><img src="{{url_for('static',filename='edit.png', _external=True)}}" alt="" title="" border="0" /></a></td>-->
+                <td><a href="{{ url_for('main.release_ont',
+                                        device_id=o.device_id, f=o.f, s=o.s, p=o.p, ont_id=o.ont_id, mac=mac, delete_mac=o.mac,
+                                        start_time=start_time, stop_time=stop_time, area=area_select, customer_number=customer_number,
+                                        ont_model_choice=ont_model_choice, machine_room_name=machine_room_name, fsp=fsp, cevlan=cevlan,
+                                        customer_addr=customer_addr) }}" onClick="return HTMerDel();">
+                    <img src="{{url_for('static',filename='trash.png', _external=True)}}" alt="" title=""
+                         border="0"/></a></td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<div class="pagination">
+    {{ macros.pagination_widget(pagination, '.ont_register_inspector_list', mac=mac,
+    start_time=start_time, stop_time=stop_time, area=area_select, customer_number=customer_number,
+    ont_model_choice=ont_model_choice, machine_room_name=machine_room_name, fsp=fsp, cevlan=cevlan,
+    customer_addr=customer_addr) }}
+</div>
+
+<!-- 模态框（Modal） -->
+<div class="modal fade" id="search" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+                <h4 class="modal-title" id="myModalLabel">ONU详情</h4>
+            </div>
+            <div class="modal-body">
+                <p>用户编号: <input type="text" name="account_id" id="account_id" readonly="true" style="border: hidden"/>
+                </p>
+                <p>ONT MAC: <input type="text" name="mac" id="mac" readonly="true" style="border: hidden"/></p>
+                <p>ONT 机房: <input type="text" name="machine_room" id="machine_room" readonly="true"
+                                  style="border: hidden"/></p>
+                <div id="showMes" style="font-size: large;font-weight: 700;color: red"></div>
+                <p id="print_p"></p>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+            </div>
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal -->
+</div>
+<!-- 模态框（Modal）end -->
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script language="JavaScript" type="text/JavaScript">
+    function editInfo(account_id, mac, mr) {
+        $('#account_id').val(account_id);
+        $('#mac').val(mac);
+        $('#machine_room').val(mr);
+        $('#print_p').html('');
+        $('#search').modal('show');
+        search();
+    }
+    //提交更改
+    function search() {
+        //获取模态框数据
+        var mac = $('#mac').val();
+        var machine_room = $('#machine_room').val();
+        $.ajax({
+
+            type: "post",
+            url: "check_ont_status",
+            data: "&mac=" + mac + "&machine_room=" + machine_room,
+            dataType: 'html',
+            contentType: "application/x-www-form-urlencoded; charset=utf-8",
+            beforeSend: function () {
+                $("#showMes").html('ONU信息获取中...');
+            },
+            success: function (msg) {
+                var msg_json = JSON.parse(msg);
+                msg_json = JSON.parse(msg_json);
+                if (msg_json['status'] == 'true') {
+                    for (var i = 0; i < msg_json['content'].length; i++) {
+                        $('#print_p').append(msg_json['content'][i] + '<br>')
+                    }
+                }
+                else {
+                    toastr.warning(msg_json['status']);
+                }
+            },
+            complete: function () {
+                $("#showMes").html('');
+            }
+        });
+    }
+    function HTMerDel() {
+        if (confirm("确定要删除该信息吗？删除将不能恢复！"))
+            return true;
+        else
+            return false;
+    }
+</script>
+{% endblock %}
