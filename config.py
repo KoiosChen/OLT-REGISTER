@@ -15,7 +15,7 @@ class Config:
     PERMANENT_SESSION_LIFETIME = timedelta(hours=10)
 
     SQLALCHEMY_POOL_SIZE = 300
-    FLASKY_ADMIN = 'a@b.c'
+    FLASKY_ADMIN = 'peter.chen@mbqianbao.com'
 
     # FLASKY_ADMIN = os.environ.get('FLASKY_ADMIN')
 
@@ -26,19 +26,19 @@ class Config:
 
 class DevelopmentConfig(Config):
     DEBUG = True
-    DB_USERNAME = os.environ.get('DEV_DATABASE_USERNAME') or ''
-    DB_PASSWORD = os.environ.get('DEV_DATABASE_PASSWORD') or ''
+    DB_USERNAME = os.environ.get('DEV_DATABASE_USERNAME') or 'peter'
+    DB_PASSWORD = os.environ.get('DEV_DATABASE_PASSWORD') or '123123'
     DB_HOST = os.environ.get('DEV_DATABASE_HOST') or '127.0.0.1'
-    DB_DATABASE = os.environ.get('DEV_DATABASE_DATABASE') or ''
+    DB_DATABASE = os.environ.get('DEV_DATABASE_DATABASE') or 'founderbn_sh'
     SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://' + DB_USERNAME + ':' + DB_PASSWORD + '@' + DB_HOST + '/' + DB_DATABASE
 
 
 class TestingConfig(Config):
     DEBUG = False
-    DB_USERNAME = os.environ.get('TEST_DATABASE_USERNAME') or ''
-    DB_PASSWORD = os.environ.get('TEST_DATABASE_PASSWORD') or ''
+    DB_USERNAME = os.environ.get('TEST_DATABASE_USERNAME') or 'peter'
+    DB_PASSWORD = os.environ.get('TEST_DATABASE_PASSWORD') or '123123'
     DB_HOST = os.environ.get('TEST_DATABASE_HOST') or '127.0.0.1'
-    DB_DATABASE = os.environ.get('TEST_DATABASE_DATABASE') or ''
+    DB_DATABASE = os.environ.get('TEST_DATABASE_DATABASE') or 'founderbn_sh'
     SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://' + DB_USERNAME + ':' + DB_PASSWORD + '@' + DB_HOST + '/' + DB_DATABASE
 
     JOBS = [
@@ -99,10 +99,10 @@ class TestingConfig(Config):
 
 
 class ProductionConfig(Config):
-    DB_USERNAME = os.environ.get('DATABASE_USERNAME') or ''
-    DB_PASSWORD = os.environ.get('DATABASE_PASSWORD') or ''
+    DB_USERNAME = os.environ.get('DATABASE_USERNAME') or 'peter'
+    DB_PASSWORD = os.environ.get('DATABASE_PASSWORD') or '123123'
     DB_HOST = os.environ.get('DATABASE_HOST') or '127.0.0.1'
-    DB_DATABASE = os.environ.get('DATABASE_DATABASE') or ''
+    DB_DATABASE = os.environ.get('DATABASE_DATABASE') or 'founderbn_sh'
     UPLOAD_FILE = '/Users/Peter/python/flasky/result/'
     SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://' + DB_USERNAME + ':' + DB_PASSWORD + '@' + DB_HOST + '/' + DB_DATABASE
 
