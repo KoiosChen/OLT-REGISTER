@@ -3,7 +3,6 @@ from flask_login import login_required
 from ..models import *
 from ..decorators import admin_required, permission_required
 from ..my_func import *
-from .. import db, logger
 from .forms import *
 from . import main
 import time
@@ -11,7 +10,9 @@ import re
 from collections import defaultdict
 from sqlalchemy import desc, or_
 import json
-from ..MyModule.GetWorkorderInfo import *
+from ..MyModule.GetWorkorderInfo import customerInfoQueryAction
+from ..MyModule.OntStatus import ontLocation, ont_status
+from .. import db, logger
 
 
 @main.route('/', methods=['GET'])
@@ -49,70 +50,218 @@ def account_search():
 @login_required
 @permission_required(Permission.COMMENT)
 def regist_precheck():
+    """
+    record_flag = {'1': 'alternate onu', '2': 'alternate pon', '3': 'other'}
+    :return:
+    """
     account_id = request.form.get('account_id')
     mac = request.form.get('mac')
     machine_room_id = request.form.get('machine_room_id')
+    currentState = request.form.get('currentState')
+    customerAddr = request.form.get('communityName') + '/' + request.form.get('aptNo')
+    ont_model_choice = request.form.get('ont_model_choice')
+    service_type = request.form.get('service_type')
 
-    his_device_info = get_device_info(machine_room_id)
-
-    his_device_id = [d.id for d in his_device_info]
-
-    print('account_id: ', account_id)
-
-    ont_regist_check = OntRegister.query.filter_by(username=account_id, status=1).all()
-    print(ont_regist_check)
-
-    same_mac_flag = False
-    same_dfsp_flag = False
-
-    record_flag = {'1': 'alternate onu', '2': 'alternate pon', '3': 'other'}
-
+    # 查找该机房下是否有对应的光猫，如果未找到则直接返回用户信息，不进行下面代码
     autofind_result = ont_autofind_func(machine_room_id, mac)
+    if not autofind_result:
+        return jsonify({"status": "fail", "content": "在所选机房未找到此光猫（{}）".format(mac)})
 
-    if len(ont_regist_check) > 0 and autofind_result:
+    # 查找历史的注册记录，可能有多条
+    ont_regist_check = OntRegister.query.filter_by(username=account_id, status=1).all()
+
+    # 验证历史注册记录中的信息与设备上的配置，主要是接口相符；正常情况，verify_onu_location只会有一条
+    verify_onu_location = []
+
+    for the_ont_record in ont_regist_check:
+        the_location = ontLocation(device_id=the_ont_record.device_id, mac=the_ont_record.mac)
+        print(the_location[the_ont_record.device_id][0], the_location[the_ont_record.device_id][1])
+        print('the location: ', the_location)
+        if the_location and tuple(the_location[the_ont_record.device_id][0].split('/')) == (
+                the_ont_record.f, the_ont_record.s, the_ont_record.p):
+            verify_onu_location.append((the_ont_record, the_location[the_ont_record.device_id][1]))
+
+    # 用于注册新ONU的变量
+    args = {'reporter_name': session.get('LOGINNAME'),
+            'reporter_group': User.query.filter_by(email=session.get('LOGINUSER')).first().area,
+            'register_name': session.get('LOGINNAME'),
+            'remarks': currentState,
+            'username': account_id,
+            'user_addr': customerAddr,
+            'mac': mac,
+            'ip': '',
+            'login_name': '',
+            'login_password': '',
+            'ont_model': ont_model_choice,
+            'device_id': '',
+            'status': 1,
+            'service_type': service_type,
+            'api_version': 0.1
+            }
+
+    # 如果上述验证都存在，则判断是换口还是换猫
+    if ont_regist_check and verify_onu_location:
         regist_history = []
-        for index, record in enumerate(ont_regist_check):
+        for index, (record, ontId) in enumerate(verify_onu_location):
+            print(record)
             for device_id, fsp in autofind_result.items():
+                print("autofind result:", device_id, fsp, mac)
+                print("history:", record.device_id, record.s, record.p, record.mac)
                 if not fsp:
                     # 如果fsp为 False， 表示在这个设备上未找到ONU
-                    break
+                    continue
                 now_f, now_s, now_p = fsp.split('/')
-                if device_id == record.device_id and now_s == record.s and now_p == record.p and mac != record.mac:
+                if [now_f, now_s, now_p] == ['0', record.s, record.p] and device_id == record.device_id:
                     # 标记换猫
                     regist_history.append({"record_obj": record,
-                                           "action": '1',
+                                           "fromOntId": ontId,
+                                           "action": "1",
+                                           "from_mac": record.mac,
+                                           "to_mac": mac,
                                            "now_device_id": device_id,
                                            "now_s": now_s,
                                            "now_p": now_p})
-                elif (device_id != record.device_id or now_s != record.s or now_p != record.p) and mac != record.mac:
-                    # 标记换口
-                    regist_history.append({"record_obj": record, "action": '2', "device_id": device_id})
+                elif device_id != record.device_id or now_s != record.s or now_p != record.p:
+                    # 标记换口 允许onu mac 相同。
+                    regist_history.append({"record_obj": record,
+                                           "fromOntId": ontId,
+                                           "action": "2",
+                                           "device_id": device_id,
+                                           "from_device": record.device_id,
+                                           "from_fsp": "0/" + record.s + "/" + record.p,
+                                           "from_mac": record.mac,
+                                           "to_device": device_id,
+                                           "to_fsp": "0/" + now_s + "/" + now_p,
+                                           "to_mac": mac})
                 else:
                     # 标记为其它未考虑因素
-                    regist_history.append({"record_obj": record, "action": '3'})
+                    regist_history.append({"record_obj": record, "action": "3"})
 
         if not regist_history:
-            # 如果regist_history为空，表示没有找到需要注册的ONU
-            return jsonify({"status": "fail", "content": "onu not found"})
+            # 如果regist_history为空，表示没有找到需要注册的ONU，原则上不会运行到这个判断。为老代码，暂不删除
+            return jsonify({"status": "fail", "content": "在所选机房未找到此光猫（{}）".format(mac)})
         else:
+            operate_cache = []
             for record_action in regist_history:
                 robj = record_action["record_obj"]
-                if record_action["action"] == "1":
-                    logger.info("do ont modify for record {}".format(robj.id))
-                    return ont_modify_func(device_id=record_action["now_device_id"],
-                                           f='0', s=record_action["now_s"], p=record_action["now_p"], ontid=robj.ont_id,
-                                           mac=mac)
-                elif record_action["action"] == "2":
-                    logger.info("do ont alternate from {} to {}".format())
-                elif record_action["action"] == "3":
-                    pass
+                if (robj.device_id, robj.s, robj.p, robj.mac) in operate_cache:
+                    continue
+                else:
+                    operate_cache.append((robj.device_id, robj.s, robj.p, robj.mac))
 
-            return jsonify({"status": "ok", "content": regist_history})
+                    # 如果不存在四要素的cache，说明是第一次匹配到这条历史记录
+                    if record_action["action"] == "1":
+                        # 换猫
 
-    elif len(ont_regist_check) == 0 and autofind_result:
-        return jsonify({'status': 'new', 'content': 'no history regist records'})
-    elif not autofind_result:
-        return jsonify({"status": "fail", "content": "device not found"})
+                        # 换猫操作，其中的ontid为实际目前的ontid
+                        logger.info("do ont modify for record {}".format(robj.id))
+                        modify_result = ont_modify_func(robj.device_id, robj.f, robj.s, robj.p,
+                                                        record_action['fromOntId'], mac)
+
+                        if modify_result['status'] == 'ok':
+                            # 更新历史记录状态为997， 表示换猫记录
+                            robj.status = 997
+                            record_action["return_info"] = "\t换猫： 从{}换成{}".format(record_action['from_mac'],
+                                                                                  record_action['to_mac'])
+                            new_record = OntRegister(f=robj.f, s=robj.s, p=robj.p, mac=mac,
+                                                     cevlan=robj.cevlan, ont_id=robj.ont_id,
+                                                     device_id=robj.device_id,
+                                                     ont_model=robj.ont_model,
+                                                     regist_status=robj.regist_status,
+                                                     username=robj.username,
+                                                     user_addr=customerAddr,
+                                                     reporter_name=session.get('LOGINNAME'),
+                                                     reporter_group=User.query.filter_by(
+                                                         email=session['LOGINUSER']).first().area,
+                                                     regist_operator=session.get('LOGINNAME'),
+                                                     remarks=currentState,
+                                                     status=1,
+                                                     create_time=time.localtime(),
+                                                     update_time=time.localtime())
+
+                            db.session.add(new_record)
+                            db.session.commit()
+
+                            modify_record = RegisterModify(from_id=robj.id,
+                                                           to_id=new_record.id,
+                                                           modify_reason=record_action["action"],
+                                                           create_time=time.localtime())
+                            db.session.add(modify_record)
+                            db.session.add(robj)
+                            db.session.commit()
+                            flash(modify_result['content'])
+                            return jsonify(modify_result)
+                        else:
+                            flash(modify_result['content'])
+                            return jsonify(modify_result)
+
+                    elif record_action["action"] == "2":
+                        # 换口
+                        # 更新历史记录状态为996， 表示换口，这里直接使用release_ont_func方法，会对历史记录状态进行调整
+                        release_result = release_ont_func(robj.device_id, robj.f, robj.s, robj.p,
+                                                          record_action['fromOntId'], robj.mac, to_status=996)
+                        if not release_result:
+                            return jsonify({"status": "fail", "content": "换口操作中释放历史ONU失败，请联系值班网管"})
+
+                        # 若释放成功，则开始注册操作
+                        args['device_id'] = record_action['device_id']
+                        register_result = ont_register_func(**args)
+
+                        # api_version 为0.1 返回消息格式为{"status": "", "content": ""}
+                        if register_result.get('status') == 'ok':
+                            # 如果注册成功，则写入变更记录
+                            modify_record = RegisterModify(from_id=robj.id,
+                                                           to_id=register_result['content'],
+                                                           modify_reason=record_action["action"],
+                                                           create_time=time.localtime())
+                            db.session.add(modify_record)
+
+                        else:
+                            # 回滚原先记录
+                            robj.status = 1
+                            return jsonify({"status": "fail", "content": register_result["content"]})
+
+                        db.session.add(robj)
+                        logger.info(
+                            "do ont alternate from device {} {} to device {} {}".format(record_action["from_device"],
+                                                                                        record_action["from_fsp"],
+                                                                                        record_action['to_device'],
+                                                                                        record_action["to_fsp"]))
+
+                    elif record_action["action"] == "3":
+                        return jsonify({"status": "fail", "content": "注册异常，请联系技术部值班网管"})
+
+            return jsonify({"status": "ok", "content": [r["return_info"] for r in regist_history]})
+
+    elif not verify_onu_location or not ont_regist_check:
+        for device_id, fsp in autofind_result.items():
+            print("autofind result:", device_id, fsp, mac)
+            if not fsp:
+                # 如果fsp为 False， 表示在这个设备上未找到ONU
+                continue
+            else:
+                # 若释放成功，则开始注册操作
+                args['device_id'] = device_id
+                register_result = ont_register_func(**args)
+
+                # api_version 为0.1 返回消息格式为{"status": "", "content": ""}
+                if register_result.get('status') == 'ok':
+                    if ont_regist_check:
+                        for r in ont_regist_check:
+                            r.status = 998
+                            modify_record = RegisterModify(from_id=r.id,
+                                                           to_id=register_result['content'],
+                                                           modify_reason="998",
+                                                           create_time=time.localtime())
+                            db.session.add(modify_record)
+                            db.session.add(r)
+                        db.session.commit()
+                    logger.info("register {} on {} successful".format(mac, device_id))
+                    return jsonify({"status": "ok", "content": "注册成功，请确认用户上网正常"})
+                else:
+                    return jsonify({"status": "fail", "content": register_result["content"]})
+
+        return jsonify({'status': 'new_delOld', 'content': '注册记录信息与实际设备配置不付，重新注册并删除旧的注册记录'})
 
 
 @main.route('/ont_register_from_accountid', methods=['GET', 'POST'])

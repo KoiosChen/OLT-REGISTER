@@ -1,5 +1,5 @@
-from ..models import ontinfo_translate, MachineRoom
-from ..my_func import FindByMac
+from ..models import ontinfo_translate, MachineRoom, Device
+from ..my_func import FindByMac, get_device_info
 from .. import logger
 from . import GetDeviceInfo
 import re
@@ -71,3 +71,19 @@ def ont_status(mac, machine_room, level='verbose'):
         translated.append(info)
 
     return {'status': 'true', 'content': translated}
+
+
+def ontLocation(device_id='', machine_room='', mac=''):
+    device_list = get_device_info(machine_room) if machine_room else Device.query.filter_by(id=device_id).all()
+    if device_list:
+        for device in device_list:
+            logger.debug('telnet device {} {}'.format(device.device_name, device.ip))
+            try:
+                fsp, ontid = FindByMac(mac, device.ip, device.login_name, device.login_password, level='fsp')
+                if fsp and ontid:
+                    return {device_id: (fsp, ontid)}
+            except Exception as e:
+                logger.error(e)
+                return False
+
+    return False

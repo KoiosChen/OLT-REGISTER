@@ -3,7 +3,8 @@ import threading
 import re
 import time
 from datetime import datetime
-from .models import MachineRoom, Device, AccountInfo, ONTDetail, MacLearnedByONT, OntRegister, CeVlan, ServicePort, PeVlan
+from .models import MachineRoom, Device, AccountInfo, ONTDetail, MacLearnedByONT, OntRegister, CeVlan, ServicePort, \
+    PeVlan
 from .telnet_device import Telnet5680T, TelnetME60
 from . import db, logger
 from sqlalchemy import or_, update
@@ -34,7 +35,7 @@ def get_device_info(machine_room_id):
     :return:
     """
     device_info = Device.query.filter_by(machine_room_id=machine_room_id).all()
-    return device_info if device_info else False
+    return device_info if device_info else []
 
 
 class StartThread(threading.Thread):
@@ -65,7 +66,8 @@ def GetBASEInfo(start=1, stop=3, domain='pppoe'):
         result = tlnt.get_access_user_by_domain(domain)
 
         for username, int, sub_int, ip, mac in result:
-            username_indb = AccountInfo.query.filter_by(username=username, interface=int, sub_int=sub_int, mac=mac).first()
+            username_indb = AccountInfo.query.filter_by(username=username, interface=int, sub_int=sub_int,
+                                                        mac=mac).first()
             if not username_indb:
                 db_action = AccountInfo(username=username, interface=int, sub_int=sub_int, mac=mac, bas_name=name,
                                         ip=ip, create_time=time.localtime(), update_time=time.localtime())
@@ -93,7 +95,8 @@ def ont_learned_by_mac(id):
     for ont in ont_list:
         logger.debug(ont.f + ' ' + ont.s + ' ' + ont.p + ' ' + str(ont.ont_id))
         vlanid = CeVlan.query.filter_by(device_id=device_id, s=ont.s, p=ont.p, ont_id=str(ont.ont_id)).first()
-        mac_list = t.display_mac_learned_by_ont(f=ont.f, s=ont.s, p=ont.p, ontid=str(ont.ont_id), vlanid=vlanid.cevlan if vlanid else '')
+        mac_list = t.display_mac_learned_by_ont(f=ont.f, s=ont.s, p=ont.p, ontid=str(ont.ont_id),
+                                                vlanid=vlanid.cevlan if vlanid else '')
         if mac_list:
             for line in mac_list:
                 mac = re.findall(r'([0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4})', line)
@@ -117,7 +120,8 @@ def diagnose_display_elabel(id):
     import re
     device_id = id
     device_info = Device.query.filter_by(id=device_id).first()
-    t = Telnet5680T.TelnetDevice(mac='', host=device_info.ip, username=device_info.login_name, password=device_info.login_password)
+    t = Telnet5680T.TelnetDevice(mac='', host=device_info.ip, username=device_info.login_name,
+                                 password=device_info.login_password)
 
     t.go_into_diagnose()
     print_flag = False
@@ -130,7 +134,7 @@ def diagnose_display_elabel(id):
 
             if print_flag and line[:-1] and not re.search('/\$', line):
                 print(line)
-                f.write(line+'\r\n')
+                f.write(line + '\r\n')
 
 
 def get_ont_detail_info(tlnt, frame, slot, port, ont_id):
@@ -236,25 +240,29 @@ def AnalysisONT(id):
                 continue
             try:
                 print(i.strip().split()[:9])
-                f, s_p, ont_id, mac, control_flag, run_state, config_state, match_state, protect_side = i.strip().split()[:9]
+                f, s_p, ont_id, mac, control_flag, run_state, config_state, match_state, protect_side = i.strip().split()[
+                                                                                                        :9]
                 f = f.replace('/', '')
                 s, p = s_p.split('/')
             except Exception as e:
                 try:
                     print(i.split()[:8])
-                    f_s_p, ont_id, mac, control_flag, run_state, config_state, match_state, protect_side = i.strip().split()[:8]
+                    f_s_p, ont_id, mac, control_flag, run_state, config_state, match_state, protect_side = i.strip().split()[
+                                                                                                           :8]
                     f, s, p = f_s_p.split('/')
                 except Exception as e:
                     print(i.split()[:7])
                     f = '0'
                     s = bid
-                    ont_id, mac, control_flag, run_state, config_state, match_state, protect_side = i.strip().split()[:7]
+                    ont_id, mac, control_flag, run_state, config_state, match_state, protect_side = i.strip().split()[
+                                                                                                    :7]
                     p = port_list[x]
                     print(p)
 
             ont_info = ONTDetail.query.filter_by(mac=mac).first()
             if ont_info:
-                print('mac exist {} {}/{}/{}, ont_id:{}'.format(mac, ont_info.f, ont_info.s, ont_info.p, ont_info.ont_id))
+                print(
+                    'mac exist {} {}/{}/{}, ont_id:{}'.format(mac, ont_info.f, ont_info.s, ont_info.p, ont_info.ont_id))
                 if ont_info.f == f and ont_info.s == s and ont_info.p == p and str(ont_info.ont_id) == ont_id:
                     ont_info.update_time = time.localtime()
                     ont_info.control_flag = control_flag
@@ -455,10 +463,11 @@ def test():
                                                    ONTDetail.p == p,
                                                    or_(ONTDetail.rx_optical_power < -28,
                                                        ONTDetail.olt_rx_ont_optical_power < -28)).count()
-                    print('{}   {}  {}  {}%    {}%'.format(total, losi, rx_31, int(losi/total*10000)/100, int(rx_31/total*10000)/100), end='')
-                    print_data.append([str(f)+'/'+str(s)+'/'+str(p), total, losi, rx_31,
-                                       str(round((losi/total*10000)/100, 2))+'%',
-                                       str(round((rx_31/total*10000)/100, 2))+'%'])
+                    print('{}   {}  {}  {}%    {}%'.format(total, losi, rx_31, int(losi / total * 10000) / 100,
+                                                           int(rx_31 / total * 10000) / 100), end='')
+                    print_data.append([str(f) + '/' + str(s) + '/' + str(p), total, losi, rx_31,
+                                       str(round((losi / total * 10000) / 100, 2)) + '%',
+                                       str(round((rx_31 / total * 10000) / 100, 2)) + '%'])
                     print()
         init_info = {'dest_file': '/Users/Peter/python/founderbn_nmp/' + dest_file,
                      'c_l': c_l,
@@ -473,9 +482,10 @@ def test():
 
 
 def start_func():
-
     def select_func():
-        func = (get_ont_detail, update_ont_info, diagnose_display_elabel, ont_learned_by_mac, sync_cevlan, sync_service_port)
+        func = (
+            get_ont_detail, update_ont_info, diagnose_display_elabel, ont_learned_by_mac, sync_cevlan,
+            sync_service_port)
         print('please select the func your want to start:')
         startfunc = []
         for num, key in enumerate(func):
@@ -571,6 +581,12 @@ def FindByMac(mac, ip, username, password, level='base'):
         else:
             tlt.telnet_close()
             return False, False, False, False
+    elif level == 'fsp':
+        if fsp:
+            return fsp, ont_id
+        else:
+            tlt.telnet_close()
+            return False
     else:
         return fsp, ont_id, result, '_'
 
@@ -625,7 +641,7 @@ def get_cevlan(device_id, f, s, p, service_type):
             # write log
             logger.debug('the pevlan\'s cevlan range is {}  to {}'.format(vlan_start, vlan_stop))
 
-            source.extend(list(range(int(vlan_start), int(vlan_stop)+1)))
+            source.extend(list(range(int(vlan_start), int(vlan_stop) + 1)))
 
     list2 = []
     # 2017-03-08 通过查找所有的pevlan对应的fsp, 然后通过fsp查找已经注册使用的cevlan,确保在一个pevlan下没有重复使用的cevlan
@@ -647,7 +663,7 @@ def get_cevlan(device_id, f, s, p, service_type):
             list2.append(2)
 
     try:
-        return str(min(set(source)-set(list2)))
+        return str(min(set(source) - set(list2)))
     except ValueError:
         logger.error('doesnot find cevlan for {} {}/{}/{} {}'.format(device_id, f, s, p, service_type))
         return False
@@ -672,20 +688,35 @@ def ont_register_func(**kwargs):
                         'service_type': service_type
                         }
         flash_message = {'1': '光猫注册成功, 请使用\'ONU查询\'功能确认ONU状态',
+                         '2': '未发现光猫,请检查线路或联系网管',
+                         '3': '发现光猫, 但添加ONT失败,请联系值班网管',
+                         '4': '发现光猫并注册, 但是绑定native-vlan失败, 请联系值班网管',
+                         '5': '光猫链接超时'
+                         '6': '此光猫已经被注册在其它PON口, 请联系值班网管'
+                         '7': '此PON口已达到注册上线,请联系值班网管调整'
+                         '104': '发现光猫并注册, 但是绑定native-vlan失败, 系统回滚成功, 请联系值班网管处理',
+                         '107': '发现光猫并注册, 但设备native-vlan耗尽,系统回滚成功, 请联系值班网管处理',
+                         '204': '发现光猫并注册, 但是绑定native-vlan失败, 系统回滚失败, 请联系值班网管处理',
+                         '207': '发现光猫并注册, 但设备native-vlan耗尽,系统回滚失败, 请联系值班网管处理',
+                         '998': 'onu被解绑'
+                         '999': '未找到对应机房'}
+    :return: 1 -- success; 2 -- ont not found; 3 -- ont found, but register failed
+    """
+
+    flash_message = {'1': '光猫注册成功, 请使用\'ONU查询\'功能确认ONU状态',
                      '2': '未发现光猫,请检查线路或联系网管',
                      '3': '发现光猫, 但添加ONT失败,请联系值班网管',
                      '4': '发现光猫并注册, 但是绑定native-vlan失败, 请联系值班网管',
-                     '5': '光猫链接超时'
-                     '6': '此光猫已经被注册在其它PON口, 请联系值班网管'
-                     '7': '此PON口已达到注册上线,请联系值班网管调整'
+                     '5': '光猫链接超时',
+                     '6': '此光猫已经被注册在其它PON口, 请联系值班网管',
+                     '7': '此PON口已达到注册上线,请联系值班网管调整',
                      '104': '发现光猫并注册, 但是绑定native-vlan失败, 系统回滚成功, 请联系值班网管处理',
                      '107': '发现光猫并注册, 但设备native-vlan耗尽,系统回滚成功, 请联系值班网管处理',
                      '204': '发现光猫并注册, 但是绑定native-vlan失败, 系统回滚失败, 请联系值班网管处理',
                      '207': '发现光猫并注册, 但设备native-vlan耗尽,系统回滚失败, 请联系值班网管处理',
-                     '998': 'onu被解绑'
+                     '998': 'onu被解绑',
                      '999': '未找到对应机房'}
-    :return: 1 -- success; 2 -- ont not found; 3 -- ont found, but regiest failed
-    """
+
     # eth dict: ont_model_choice_id: port number
     eth = {'1': '1', '2': '4', '3': '1'}
     srvprofile_dict = {'1': '1', '2': '2', '3': '10'}
@@ -708,9 +739,15 @@ def ont_register_func(**kwargs):
     service_type = kwargs.get('service_type')
     lineprofile_id = '2'
     srvprofile_id = srvprofile_dict[kwargs.get('ont_model')]
+    api_version = kwargs.get('api_version', 0)
 
     # write log
     logger.info('User {} is using ont_register_func'.format(session['LOGINNAME']))
+
+    # 允许不传入ip， login_name, login_password, 通过device_id来查找数据库完成
+    if '' in (ip, login_name, login_password) and device_id:
+        device_info = Device.query.filter_by(id=device_id).first()
+        ip, login_name, login_password = device_info.ip, device_info.login_name, device_info.login_password
 
     # telnet olt
     try:
@@ -726,11 +763,11 @@ def ont_register_func(**kwargs):
                 logger.debug('ont add result {}'.format(line))
                 if re.search(r'ONT MAC is already exist', line):
                     logger.warning('This ONT is already exist {}'.format(mac))
-                    return 6
+                    return {"status": "fail", "content": flash_message['6']} if api_version else 6
 
                 if re.search(r'upper limit', line):
                     logger.warning('ONT {} add fail: The number of ONT in port already reach upper limit'.format(mac))
-                    return 7
+                    return {"status": "fail", "content": flash_message['7']} if api_version else 7
 
                 if re.findall(r'success\s*:\s*(\d+)', line):
                     success = re.findall(r'success\s*:\s*(\d+)', line)[0]
@@ -739,21 +776,18 @@ def ont_register_func(**kwargs):
             if success and ont_id:
                 # write log
                 logger.info('ONT regist successfully {}. MAC {} fsp {} ontid {}'.format(success, mac, fsp, ont_id))
-                # flash message
-                flash('ONT regist successfully {}. MAC {} fsp {} ontid {}'.format(success, mac, fsp, ont_id))
 
                 eth_port = eth[ont_model]
                 cevlan = get_cevlan(device_id, f, s, p, service_type)
                 if cevlan:
                     # write log
                     logger.info('Get the cevlan {}'.format(cevlan))
-                    flash('获取CEVLAN成功 {}'.format(cevlan))
 
                     # old method just support 1 port onu, not used yet
                     # regist_status = 1 if tlt.ont_port_native_vlan_add(p, ont_id, eth_port, cevlan) else 4
 
                     add_cevlan_flag = 0
-                    for e_port in range(1, int(eth_port)+1):
+                    for e_port in range(1, int(eth_port) + 1):
                         if tlt.ont_port_native_vlan_add(p, ont_id, str(e_port), cevlan):
                             logger.debug('add ont on {} {} eth {} cevlan {}'.format(p, ont_id, str(e_port), cevlan))
                             add_cevlan_flag += 1
@@ -766,7 +800,8 @@ def ont_register_func(**kwargs):
                     try:
                         ont_regist_data = OntRegister(f=f, s=s, p=p, mac=mac, cevlan=cevlan, ont_id=ont_id,
                                                       device_id=device_id,
-                                                      ont_model=ont_model, regist_status=regist_status, username=username,
+                                                      ont_model=ont_model, regist_status=regist_status,
+                                                      username=username,
                                                       user_addr=user_addr, reporter_name=reporter_name,
                                                       reporter_group=reporter_group, regist_operator=register_name,
                                                       remarks=remarks, status=regist_status,
@@ -776,6 +811,9 @@ def ont_register_func(**kwargs):
                         db.session.add(ont_regist_data)
                         db.session.commit()
                         logger.info('Insert the ont register info into db successful')
+                        # flash message
+                        flash('ONU注册成功，请确认用户上网正常')
+                        return {"status": "ok", "content": ont_regist_data.id} if api_version else regist_status
                     except Exception as e:
                         logger.error('Insert the ont register info error {}'.format(e))
                         regist_status = 8
@@ -798,13 +836,13 @@ def ont_register_func(**kwargs):
 
         tlt.telnet_close()
         logger.info('The ont register result is {}'.format(regist_status))
-        return regist_status
+        return {"status": "fail", "content": flash_message[str(regist_status)]} if api_version else regist_status
     except Exception as e:
         logger.error('ont_register_func telnet {} error {}'.format(ip, e))
-        return 5
+        return {"status": "fail", "content": flash_message['5']} if api_version else 5
 
 
-def release_ont_func(device_id, f, s, p, ont_id, mac):
+def release_ont_func(device_id, f, s, p, ont_id, mac, to_status=998):
     # check the mac info in the interface epon f/s
     # then display ont info p all
     # to get the ont_id and mac relationship
@@ -839,8 +877,9 @@ def release_ont_func(device_id, f, s, p, ont_id, mac):
                         OntRegister.query.filter_by(device_id=device_id, f=f, s=s, p=p, ont_id=ont_id, mac=mac).all()
                     delete_cevlan_list = []
                     for record in ont_register_record:
-                        logger.debug('The status of OntRegister record id {} is updated to 998'.format(record))
-                        record.status = 998
+                        logger.debug(
+                            'The status of OntRegister record id {} is updated to {}'.format(record, str(to_status)))
+                        record.status = to_status
                         db.session.add(record)
                         delete_cevlan_list.append(record.cevlan)
                     for cevlan in delete_cevlan_list:
@@ -870,16 +909,15 @@ def release_ont_func(device_id, f, s, p, ont_id, mac):
         return False
 
 
-def ont_autofind_func(machine_room, mac=None):
-    device_list = get_device_info(machine_room)
+def ont_autofind_func(machine_room='', mac='', device_list=''):
+    device_list = get_device_info(machine_room) if machine_room else Device.query.filter_by(id=device_list).all()
     autofind_result = defaultdict(list)
-    mac = '' if mac is None else mac
     if device_list:
         for device in device_list:
             logger.debug('telnet device {} {}'.format(device.device_name, device.ip))
             try:
                 tlt = Telnet5680T.TelnetDevice(mac, device.ip, device.login_name, device.login_password)
-                if mac is False:
+                if not mac:
                     autofind_result[device.device_name] = tlt.display_ont_autofind_all()
                 else:
                     autofind_result[device.id] = tlt.auto_find_onu()
@@ -887,6 +925,10 @@ def ont_autofind_func(machine_room, mac=None):
             except Exception as e:
                 logger.error(e)
                 return False
+    if mac:
+        check_result = list(set(autofind_result.values()))
+        if len(check_result) == 1 and check_result[0] is False:
+            return False
     return autofind_result if device_list else False
 
 
@@ -902,7 +944,7 @@ def olt_temp_func(machine_room):
                     tlt.telnet_close()
                 except Exception as e:
                     logger.error('cannot telnet this device to get board\'s temperature')
-                    return  False
+                    return False
     return checktemp_result
 
 
@@ -1017,7 +1059,8 @@ def sync_service_port(*args):
                     logger.info('device %s sync service port finish' % device_id)
                     logger.info('start to sync table on device {}: PEVLAN'.format(device_id))
                     for serviceport in ServicePort.query.filter_by(device_id=device_id).all():
-                        if not PeVlan.query.filter_by(device_id=serviceport.device_id, pevlan=serviceport.pevlan).first():
+                        if not PeVlan.query.filter_by(device_id=serviceport.device_id,
+                                                      pevlan=serviceport.pevlan).first():
                             logger.debug('service port to be sync to pevlan: {} {} '.format(serviceport.device_id,
                                                                                             serviceport.pevlan))
 
@@ -1182,7 +1225,7 @@ def discover_alter_interface_func(source_machine_room, destination_machine_room)
                                            ONTDetail.mac.__eq__(str(mac[0]))).first()
                 if ont_info:
                     if dest_dfsp != (d.id, ont_info.f, ont_info.s, ont_info.p):
-                        fsp_delete_list.\
+                        fsp_delete_list. \
                             append(((str(d.id), ont_info.f, ont_info.s, ont_info.p),
                                     (str(dest_dfsp[0]), dest_dfsp[1], dest_dfsp[2], dest_dfsp[3])))
                         src_dfsp = (d.id, ont_info.f, ont_info.s, ont_info.p)
@@ -1255,9 +1298,12 @@ def ont_modify_func(device_id, f, s, p, ontid, mac):
         # telnet olt
         try:
             tlt = Telnet5680T.TelnetDevice('', ip, username, password)
-            tlt.go_into_interface_mode('/'.join([f, s]))
+            tlt.go_into_interface_mode('/'.join([f, s, p]))
             tlt.ont_modify(p, ontid, mac)
-            return True
+            tlt.quit()
+            fsp, ontid, result = tlt.find_by_mac(mac)
+            return {"status": "ok", "content": "更换光猫成功"} if fsp else {"status": "fail",
+                                                                    "content": "更换光猫操作失败，可能原光猫仍旧在线，请检查后重试"}
         except Exception as e:
             logger.error(e)
-            return False
+            return {"status": "fail", "content": "更换光猫操作异常，请联系值班网管"}

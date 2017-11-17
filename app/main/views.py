@@ -273,8 +273,12 @@ def ont_register_inspector():
         area = '_'.join(form.area.data)
         # 尝试支持任何格式的MAC输入，只要是输入12位字符
         mac = form.mac.data.upper()
+        print(mac)
         b = re.findall(r'(\w{2})', mac)
+        print(b)
         mac = '-'.join([''.join(b[n:n+2]) for n in [0, 2, 4]]).upper()
+        print(mac)
+        mac = '' if mac == '--' else mac
         customer_number = form.customer_number.data
         customer_addr = form.customer_addr.data
         ont_model_choice = '_'.join(form.ont_model_choice.data)
@@ -729,6 +733,7 @@ def ont_autofind():
 
         if ont_autofind_result:
             for key, value in ont_autofind_result.items():
+                print(key, value)
                 result = []
                 for line in value:
                     if not re.search(r'display|config', line):

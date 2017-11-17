@@ -355,6 +355,15 @@ class Community(db.Model):
     machine_room_id = db.Column(db.Integer, index=True)
 
 
+class RegisterModify(db.Model):
+    __tablename__ = 'register_modify'
+    id = db.Column(db.Integer, primary_key=True)
+    from_id = db.Column(db.Integer, nullable=False, index=True)
+    to_id = db.Column(db.Integer, nullable=False, index=True)
+    modify_reason = db.Column(db.Integer, nullable=False, index=True)
+    create_time = db.Column(db.DateTime, nullable=False)
+
+
 login_manager.anonymous_user = AnonymousUser
 path = '/Users/Peter/python/founderbn_nmp/app/config_file/'
 

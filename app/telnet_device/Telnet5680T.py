@@ -16,7 +16,7 @@ class TelnetDevice:
         try:
             # assert CheckLicence.checkLicence()
             self.tn = telnetlib.Telnet(host, 23, self.timeout)
-            self.tn.set_debuglevel(0)
+            self.tn.set_debuglevel(1)
             print('login')
             time.sleep(self.command_interval)
 
@@ -426,7 +426,7 @@ class TelnetDevice:
         """
         try:
             logger.debug("ont modify {} {} mac {}".format(port, ontid, mac))
-            self.tn.write(b'ont modify ' + port.encode('utf8') + ontid.encode('utf8') + b' mac ' + mac.encode('utf8') + b'\n')
+            self.tn.write(b'ont modify ' + port.encode('utf8') + b' ' + ontid.encode('utf8') + b' mac ' + mac.encode('utf8') + b'\n')
             return True
         except Exception as e:
             logger.error(e)
