@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+#version gpon
 import os
 from app import create_app, db
 from app.models import User, Role, MachineRoom, Device, ONTDetail, ServicePort, PeVlan
