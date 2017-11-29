@@ -145,7 +145,9 @@ def regist_precheck():
             for record_action in regist_history:
                 robj = record_action["record_obj"]
                 if (robj.device_id, robj.s, robj.p, robj.mac) in operate_cache:
-                    continue
+                    robj.status = 998
+                    db.session.add(robj)
+                    db.session.commit()
                 else:
                     operate_cache.append((robj.device_id, robj.s, robj.p, robj.mac))
 
