@@ -6,12 +6,9 @@ from ..my_func import *
 from .forms import *
 from . import main
 import time
-import re
-from collections import defaultdict
-from sqlalchemy import desc, or_
 import json
 from ..MyModule.GetWorkorderInfo import customerInfoQueryAction
-from ..MyModule.OntStatus import ontLocation, ont_status
+from ..MyModule.OntStatus import ontLocation
 from .. import db, logger
 
 
@@ -19,9 +16,11 @@ from .. import db, logger
 @login_required
 @permission_required(Permission.COMMENT)
 def index():
-    if request.method == 'GET':
-        session['index'] = 'from_index_file'
-        return render_template('index.html')
+    if session.get('REGIST_RESULT') is not None:
+        flash(session['REGIST_RESULT'])
+        session['REGIST_RESULT'] = None
+    session['index'] = 'from_index_file'
+    return render_template('index.html')
 
 
 @main.route('/account_search', methods=['POST'])
@@ -51,7 +50,7 @@ def account_search():
 @permission_required(Permission.COMMENT)
 def regist_precheck():
     """
-    record_flag = {'1': 'alternate onu', '2': 'alternate pon', '3': 'other'}
+    record_flag = {'1': 'modify onu', '2': 'alternate pon', '3': 'other', '4': 'new register'}
     :return:
     """
     account_id = request.form.get('account_id')
@@ -75,6 +74,8 @@ def regist_precheck():
 
     for the_ont_record in ont_regist_check:
         the_location = ontLocation(device_id=the_ont_record.device_id, mac=the_ont_record.mac)
+        if not the_location:
+            break
         print(the_location[the_ont_record.device_id][0], the_location[the_ont_record.device_id][1])
         print('the location: ', the_location)
         if the_location and tuple(the_location[the_ont_record.device_id][0].split('/')) == (
@@ -141,11 +142,16 @@ def regist_precheck():
             # 如果regist_history为空，表示没有找到需要注册的ONU，原则上不会运行到这个判断。为老代码，暂不删除
             return jsonify({"status": "fail", "content": "在所选机房未找到此光猫（{}）".format(mac)})
         else:
+            # 使用operate_cache来存放四要素信息，如果存在，表明这条历史注册记录已经被处理过
             operate_cache = []
+            print(regist_history)
             for record_action in regist_history:
+                print(record_action)
                 robj = record_action["record_obj"]
                 if (robj.device_id, robj.s, robj.p, robj.mac) in operate_cache:
-                    continue
+                    robj.status = 998
+                    db.session.add(robj)
+                    db.session.commit()
                 else:
                     operate_cache.append((robj.device_id, robj.s, robj.p, robj.mac))
 
@@ -156,7 +162,7 @@ def regist_precheck():
                         # 换猫操作，其中的ontid为实际目前的ontid
                         logger.info("do ont modify for record {}".format(robj.id))
                         modify_result = ont_modify_func(robj.device_id, robj.f, robj.s, robj.p,
-                                                        record_action['fromOntId'], mac)
+                                                        record_action['fromOntId'], mac, force=True)
 
                         if modify_result['status'] == 'ok':
                             # 更新历史记录状态为997， 表示换猫记录
@@ -174,7 +180,8 @@ def regist_precheck():
                                                      reporter_group=User.query.filter_by(
                                                          email=session['LOGINUSER']).first().area,
                                                      regist_operator=session.get('LOGINNAME'),
-                                                     remarks=currentState,
+                                                     remarks=json.dumps({"modify_reson": record_action["action"],
+                                                                         "account_current_status": currentState}),
                                                      status=1,
                                                      create_time=time.localtime(),
                                                      update_time=time.localtime())
@@ -185,14 +192,19 @@ def regist_precheck():
                             modify_record = RegisterModify(from_id=robj.id,
                                                            to_id=new_record.id,
                                                            modify_reason=record_action["action"],
+                                                           account_current_status=currentState,
                                                            create_time=time.localtime())
                             db.session.add(modify_record)
                             db.session.add(robj)
+                            for r in ont_regist_check:
+                                if r.id != robj.id:
+                                    r.status = 998
+                                    db.session.add(r)
                             db.session.commit()
-                            flash(modify_result['content'])
+                            session['REGIST_RESULT'] = modify_result['content']
                             return jsonify(modify_result)
                         else:
-                            flash(modify_result['content'])
+                            session['REGIST_RESULT'] = modify_result['content']
                             return jsonify(modify_result)
 
                     elif record_action["action"] == "2":
@@ -203,8 +215,12 @@ def regist_precheck():
                         if not release_result:
                             return jsonify({"status": "fail", "content": "换口操作中释放历史ONU失败，请联系值班网管"})
 
+                        # flash("原纪录光猫已删除")
+
                         # 若释放成功，则开始注册操作
                         args['device_id'] = record_action['device_id']
+                        args['remarks'] = json.dumps({"modify_reason": record_action["action"],
+                                                      "account_current_status": currentState})
                         register_result = ont_register_func(**args)
 
                         # api_version 为0.1 返回消息格式为{"status": "", "content": ""}
@@ -213,20 +229,23 @@ def regist_precheck():
                             modify_record = RegisterModify(from_id=robj.id,
                                                            to_id=register_result['content'],
                                                            modify_reason=record_action["action"],
+                                                           account_current_status=currentState,
                                                            create_time=time.localtime())
                             db.session.add(modify_record)
-
+                            for r in ont_regist_check:
+                                if r.id != robj.id:
+                                    r.status = 998
+                                    db.session.add(r)
+                            db.session.commit()
+                            # 此处注册成功不需要flash message到网页上，因为ont_register_func中有对应的flash message
+                            session['REGIST_RESULT'] = '换口成功，新ONU已成功注册，请确认用户上网是否正常'
+                            return jsonify(register_result)
                         else:
                             # 回滚原先记录
                             robj.status = 1
+                            db.session.add(robj)
+                            db.session.commit()
                             return jsonify({"status": "fail", "content": register_result["content"]})
-
-                        db.session.add(robj)
-                        logger.info(
-                            "do ont alternate from device {} {} to device {} {}".format(record_action["from_device"],
-                                                                                        record_action["from_fsp"],
-                                                                                        record_action['to_device'],
-                                                                                        record_action["to_fsp"]))
 
                     elif record_action["action"] == "3":
                         return jsonify({"status": "fail", "content": "注册异常，请联系技术部值班网管"})
@@ -242,6 +261,8 @@ def regist_precheck():
             else:
                 # 若释放成功，则开始注册操作
                 args['device_id'] = device_id
+                args['remarks'] = json.dumps({"modify_reason": "4",
+                                              "account_current_status": currentState})
                 register_result = ont_register_func(**args)
 
                 # api_version 为0.1 返回消息格式为{"status": "", "content": ""}
@@ -252,11 +273,18 @@ def regist_precheck():
                             modify_record = RegisterModify(from_id=r.id,
                                                            to_id=register_result['content'],
                                                            modify_reason="998",
+                                                           account_current_status=currentState,
                                                            create_time=time.localtime())
                             db.session.add(modify_record)
                             db.session.add(r)
+                            for rr in ont_regist_check:
+                                if rr.id != r.id:
+                                    rr.status = 998
+                                    db.session.add(rr)
                         db.session.commit()
                     logger.info("register {} on {} successful".format(mac, device_id))
+                    session['REGIST_RESULT'] = '新ONU已成功注册，请确认用户上网是否正常'
+
                     return jsonify({"status": "ok", "content": "注册成功，请确认用户上网正常"})
                 else:
                     return jsonify({"status": "fail", "content": register_result["content"]})

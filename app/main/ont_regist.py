@@ -1,30 +1,14 @@
-from flask import redirect, session, url_for, render_template, flash, request, jsonify
+from flask import redirect, session, url_for, render_template, flash, request
 from flask_login import login_required
-from ..models import Device, ONTDetail, Log, MachineRoom, Permission, User, OntRegister, PeVlan, Area, Role, \
-    ontinfo_translate, Community, defaultLoginName
-from ..decorators import admin_required, permission_required
-from ..my_func import FindLOID, add_log, FindByMac, ont_register_func, release_ont_func, manual_sync_func, \
-    get_machine_room_by_area, ont_autofind_func, olt_temp_func, discover_alter_interface_func
-from .. import db, logger
-from .forms import *
+from ..models import MachineRoom, Permission, Community
+from ..decorators import permission_required
+from ..my_func import ont_register_func
+from .. import logger
+from .forms import OntRegisterForm, get_machine_room_by_area, User
 from . import main
-import time
-import re
-from collections import defaultdict
-from sqlalchemy import desc, or_
-import json
-from ..MyModule.SeqPickle import get_pubkey, update_crypted_licence
 from ..MyModule.OntStatus import ont_status
-from ..MyModule.GetWorkorderInfo import *
-
-
-@main.route('/handwork', methods=['GET'])
-@login_required
-@permission_required(Permission.COMMENT)
-def handwork():
-    if request.method == 'GET':
-        session['index'] = 'from_index_file'
-        return render_template('handwork.html')
+from ..MyModule.GetWorkorderInfo import customerInfoQueryAction
+from ..MyModule.GetDeviceInfo import get_device_info
 
 
 @main.route('/ont_register_for_handwork', methods=['GET', 'POST'])

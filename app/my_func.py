@@ -8,7 +8,7 @@ from .models import MachineRoom, Device, AccountInfo, ONTDetail, MacLearnedByONT
 from .telnet_device import Telnet5680T, TelnetME60
 from . import db, logger
 from sqlalchemy import or_, update
-from .MyModule import SaveData
+from .MyModule import SaveData, OntStatus
 from flask import flash, session
 from collections import defaultdict
 import sys
@@ -169,47 +169,50 @@ def update_ont_info(id):
             tlnt.go_into_interface_mode('/'.join([ont.f, ont.s, ont.p]))
             # get the optical power info
             optical = tlnt.check_optical_info(p=str(ont.p), id=str(ont.ont_id))
-            for i in optical:
-                if i.strip()[:-1] and re.search(r':', str(i)):
-                    content = i.strip().replace(' ', '').split(':')[1].split(',')[0].strip('\'')
-                    # The if ... elif below is used to handle the content to digital when it include some string
-                    if content == '-' or content == '[-':
-                        content = '0.0'
-                    if re.search(r'Rx optical power|Rx Optical Power', str(i)):
-                        ont.rx_optical_power = re.findall(r'(\-?[0-9]+\.?[0-9]*)', str(content))[0]
-                    elif re.search(r'Voltage', str(i)):
-                        ont.voltage = re.findall(r'(\-?[0-9]+\.?[0-9]*)', str(content))[0]
-                    elif re.search(r'Temperature\(C\)', str(i)):
-                        ont.temperature = re.findall(r'(\-?[0-9]+\.?[0-9]*)', str(content))[0]
-                    elif re.search(r'OLT Rx ONT optical power|OLT Rx ONT Optical Power', str(i)):
-                        ont.olt_rx_ont_optical_power = re.findall(r'(\-?[0-9]+\.?[0-9]*)', str(content))[0]
+            if 'Failure' not in '\n'.join([line for line in optical]):
+                for i in optical:
+                    if i.strip()[:-1] and re.search(r':', str(i)):
+                        content = i.strip().replace(' ', '').split(':')[1].split(',')[0].strip('\'')
+                        # The if ... elif below is used to handle the content to digital when it include some string
+                        if content == '-' or content == '[-':
+                            content = '0.0'
+                        if re.search(r'Rx optical power|Rx Optical Power', str(i)):
+                            ont.rx_optical_power = re.findall(r'(\-?[0-9]+\.?[0-9]*)', str(content))[0]
+                        elif re.search(r'Voltage', str(i)):
+                            ont.voltage = re.findall(r'(\-?[0-9]+\.?[0-9]*)', str(content))[0]
+                        elif re.search(r'Temperature\(C\)', str(i)):
+                            ont.temperature = re.findall(r'(\-?[0-9]+\.?[0-9]*)', str(content))[0]
+                        elif re.search(r'OLT Rx ONT optical power|OLT Rx ONT Optical Power', str(i)):
+                            ont.olt_rx_ont_optical_power = re.findall(r'(\-?[0-9]+\.?[0-9]*)', str(content))[0]
 
-            # get the last down cause
-            register_info = tlnt.check_register_info(p=str(ont.p), id=str(ont.ont_id))
-            flag = [False, False, False]
-            for line in register_info:
-                if line.strip()[:-1] and re.search(r':', str(line)):
-                    if re.search(r'UpTime', str(line)) and not flag[0]:
-                        uptime = ':'.join(line.strip().split(':')[1:]).strip().split('+')[0]
-                        if uptime != '-':
-                            print(uptime)
-                            ont.last_up_time = datetime.strptime(uptime, "%Y-%m-%d %H:%M:%S")
-                            print(datetime.strptime(uptime, "%Y-%m-%d %H:%M:%S"))
-                            flag[0] = True
-                    elif re.search(r'DownTime', str(line)) and not flag[1]:
-                        downtime = ':'.join(line.strip().split(':')[1:]).strip().split('+')[0]
-                        if downtime != '-':
-                            ont.last_down_time = datetime.strptime(downtime, "%Y-%m-%d %H:%M:%S")
-                            print(datetime.strptime(downtime, "%Y-%m-%d %H:%M:%S"))
-                            flag[1] = True
-                    elif re.search(r'DownCause', str(line)) and not flag[2]:
-                        last_down_cause = line.strip().split(':')[1].strip('\'').strip()
-                        if last_down_cause != '-':
-                            ont.last_down_cause = last_down_cause
-                            print(line.strip().split(':')[1].strip('\''))
-                            flag[2] = True
-
-            db.session.add(ont)
+                # get the last down cause
+                register_info = tlnt.check_register_info(p=str(ont.p), id=str(ont.ont_id))
+                flag = [False, False, False]
+                for line in register_info:
+                    if line.strip()[:-1] and re.search(r':', str(line)):
+                        if re.search(r'UpTime', str(line)) and not flag[0]:
+                            uptime = ':'.join(line.strip().split(':')[1:]).strip().split('+')[0]
+                            if uptime != '-':
+                                print(uptime)
+                                ont.last_up_time = datetime.strptime(uptime, "%Y-%m-%d %H:%M:%S")
+                                print(datetime.strptime(uptime, "%Y-%m-%d %H:%M:%S"))
+                                flag[0] = True
+                        elif re.search(r'DownTime', str(line)) and not flag[1]:
+                            downtime = ':'.join(line.strip().split(':')[1:]).strip().split('+')[0]
+                            if downtime != '-':
+                                ont.last_down_time = datetime.strptime(downtime, "%Y-%m-%d %H:%M:%S")
+                                print(datetime.strptime(downtime, "%Y-%m-%d %H:%M:%S"))
+                                flag[1] = True
+                        elif re.search(r'DownCause', str(line)) and not flag[2]:
+                            last_down_cause = line.strip().split(':')[1].strip('\'').strip()
+                            if last_down_cause != '-':
+                                ont.last_down_cause = last_down_cause
+                                print(line.strip().split(':')[1].strip('\''))
+                                flag[2] = True
+                db.session.add(ont)
+            else:
+                print('deleting ont {}'.format(ont.mac))
+                db.session.delete(ont)
             db.session.commit()
         tlnt.telnet_close()
     else:
@@ -444,9 +447,9 @@ def test():
         print_data = []
         print_data.append(head)
         print(device_id.machine_room.name)
-        for f in [i.f for i in ONTDetail.query.group_by('f').filter_by(device_id=device_id.id).all()]:
-            for s in [i.s for i in ONTDetail.query.group_by('s').filter_by(device_id=device_id.id, f=f).all()]:
-                for p in [i.p for i in ONTDetail.query.group_by('p').filter_by(device_id=device_id.id, f=f, s=s).all()]:
+        for f in [i.f for i in ONTDetail.query.group_by('f').filter_by(device_id=device_id.id, run_state='online').all()]:
+            for s in [i.s for i in ONTDetail.query.group_by('s').filter_by(device_id=device_id.id, f=f, run_state='online').all()]:
+                for p in [i.p for i in ONTDetail.query.group_by('p').filter_by(device_id=device_id.id, f=f, s=s, run_state='online').all()]:
                     print('{}/{}/{}'.format(f, s, p), end='\t')
                     total = ONTDetail.query.filter(ONTDetail.device_id == device_id.id,
                                                    ONTDetail.f == f,
@@ -463,11 +466,12 @@ def test():
                                                    ONTDetail.p == p,
                                                    or_(ONTDetail.rx_optical_power < -28,
                                                        ONTDetail.olt_rx_ont_optical_power < -28)).count()
-                    print('{}   {}  {}  {}%    {}%'.format(total, losi, rx_31, int(losi / total * 10000) / 100,
-                                                           int(rx_31 / total * 10000) / 100), end='')
-                    print_data.append([str(f) + '/' + str(s) + '/' + str(p), total, losi, rx_31,
-                                       str(round((losi / total * 10000) / 100, 2)) + '%',
-                                       str(round((rx_31 / total * 10000) / 100, 2)) + '%'])
+                    if not total:
+                        print('{}   {}  {}  {}%    {}%'.format(total, losi, rx_31, int(losi / total * 10000) / 100, int(rx_31 / total * 10000) / 100), end='')
+                        print_data.append([str(f) + '/' + str(s) + '/' + str(p), total, losi, rx_31, str(round((losi / total * 10000) / 100, 2)) + '%',  str(round((rx_31 / total * 10000) / 100, 2)) + '%'])
+                    else:
+                        print('{}   {}  {}  {}%    {}%'.format(total, losi, rx_31, 0, 0), end='')
+                        print_data.append([str(f) + '/' + str(s) + '/' + str(p), total, losi, rx_31, '0%', '0%'])
                     print()
         init_info = {'dest_file': '/Users/Peter/python/founderbn_nmp/' + dest_file,
                      'c_l': c_l,
@@ -587,6 +591,16 @@ def FindByMac(mac, ip, username, password, level='base'):
         else:
             tlt.telnet_close()
             return False
+    elif level == 'optical':
+        if fsp:
+            tlt.go_into_interface_mode(fsp)
+            p = fsp.split('/')[2]
+            optical = tlt.check_optical_info(p, id=ont_id)
+            tlt.telnet_close()
+            return optical, '_', '_', '_'
+        else:
+            tlt.telnet_close()
+            return False, False, False, False
     else:
         return fsp, ont_id, result, '_'
 
@@ -733,13 +747,14 @@ def ont_register_func(**kwargs):
     reporter_name = kwargs.get('reporter_name')
     reporter_group = kwargs.get('reporter_group')
     register_name = kwargs.get('register_name')
-    # 20171031 重新定义remarks用途，用于记录注册时用户的状态
+    # 20171031 重新定义remarks用途，用于记录注册时用户的状态以及修改的原因，例如换猫，换口
     remarks = kwargs.get('remarks')
     status = kwargs.get('status')
     service_type = kwargs.get('service_type')
     lineprofile_id = '2'
     srvprofile_id = srvprofile_dict[kwargs.get('ont_model')]
     api_version = kwargs.get('api_version', 0)
+    force = kwargs.get('force', False)
 
     # write log
     logger.info('User {} is using ont_register_func'.format(session['LOGINNAME']))
@@ -762,8 +777,14 @@ def ont_register_func(**kwargs):
             for line in ont_add_result:
                 logger.debug('ont add result {}'.format(line))
                 if re.search(r'ONT MAC is already exist', line):
-                    logger.warning('This ONT is already exist {}'.format(mac))
-                    return {"status": "fail", "content": flash_message['6']} if api_version else 6
+                    if force:
+                        this_mac_location = OntStatus.ontLocation(device_id=device_id, mac=mac)
+                        fsp, ontid_ = this_mac_location[device_id]
+                        f_, s_, p_ = fsp.split('/')
+                        release_result = release_ont_func(device_id, f_, s_, p_, ontid_, mac)
+                        if not release_result:
+                            logger.warning('This ONT is already exist {}'.format(mac))
+                            return {"status": "fail", "content": flash_message['6']} if api_version else 6
 
                 if re.search(r'upper limit', line):
                     logger.warning('ONT {} add fail: The number of ONT in port already reach upper limit'.format(mac))
@@ -811,8 +832,6 @@ def ont_register_func(**kwargs):
                         db.session.add(ont_regist_data)
                         db.session.commit()
                         logger.info('Insert the ont register info into db successful')
-                        # flash message
-                        flash('ONU注册成功，请确认用户上网正常')
                         return {"status": "ok", "content": ont_regist_data.id} if api_version else regist_status
                     except Exception as e:
                         logger.error('Insert the ont register info error {}'.format(e))
@@ -842,7 +861,7 @@ def ont_register_func(**kwargs):
         return {"status": "fail", "content": flash_message['5']} if api_version else 5
 
 
-def release_ont_func(device_id, f, s, p, ont_id, mac, to_status=998):
+def release_ont_func(device_id, f, s, p, ont_id, mac, to_status=None):
     # check the mac info in the interface epon f/s
     # then display ont info p all
     # to get the ont_id and mac relationship
@@ -856,6 +875,8 @@ def release_ont_func(device_id, f, s, p, ont_id, mac, to_status=998):
 
     logger.info('release_ont_func_log: User {} trying to release ont {} on device {} - {}'
                 .format(session['LOGINNAME'], mac, device_id, ip))
+
+    to_status = 998 if to_status is None else to_status
 
     # telnet olt
     try:
@@ -898,11 +919,11 @@ def release_ont_func(device_id, f, s, p, ont_id, mac, to_status=998):
                     logger.info('Cevlan related is deleted in database. The status of the ont is updated to 998.')
                     return True
                 except Exception as e:
-                    flash('write db error {}'.format(e))
                     logger.error('write db error {}'.format(e))
                     return False
         else:
             logger.warning('ont {} is not registered on device {} {}/{}/{} {}'.format(mac, device_id, f, s, p, ont_id))
+            flash('未找到注册光猫，不可删除')
             return False
     except Exception as e:
         logger.error('connect timeout when release ont on {} for {}'.format(ip, e))
@@ -1287,7 +1308,7 @@ def discover_alter_interface_func(source_machine_room, destination_machine_room)
         return [alter_matched_onu_flag, '', '', ont_delete_list]
 
 
-def ont_modify_func(device_id, f, s, p, ontid, mac):
+def ont_modify_func(device_id, f, s, p, ontid, mac, force=False):
     device_info = Device.query.filter_by(id=device_id).first()
     if device_info:
         ip = device_info.ip
@@ -1299,11 +1320,9 @@ def ont_modify_func(device_id, f, s, p, ontid, mac):
         try:
             tlt = Telnet5680T.TelnetDevice('', ip, username, password)
             tlt.go_into_interface_mode('/'.join([f, s, p]))
-            tlt.ont_modify(p, ontid, mac)
-            tlt.quit()
-            fsp, ontid, result = tlt.find_by_mac(mac)
-            return {"status": "ok", "content": "更换光猫成功"} if fsp else {"status": "fail",
-                                                                    "content": "更换光猫操作失败，可能原光猫仍旧在线，请检查后重试"}
+            modify_result = tlt.ont_modify(p, ontid, mac, force=force)
+
+            return {"status": "ok", "content": "更换光猫成功, 请确认用户上网正常"} if modify_result else {"status": "fail", "content": "更换光猫失败"}
         except Exception as e:
             logger.error(e)
             return {"status": "fail", "content": "更换光猫操作异常，请联系值班网管"}
