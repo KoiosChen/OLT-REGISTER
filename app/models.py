@@ -361,6 +361,7 @@ class RegisterModify(db.Model):
     from_id = db.Column(db.Integer, nullable=False, index=True)
     to_id = db.Column(db.Integer, nullable=False, index=True)
     modify_reason = db.Column(db.Integer, nullable=False, index=True)
+    account_current_status = db.Column(db.Integer, nullable=False, index=True)
     create_time = db.Column(db.DateTime, nullable=False)
 
 

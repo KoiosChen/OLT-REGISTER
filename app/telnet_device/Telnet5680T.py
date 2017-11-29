@@ -16,7 +16,7 @@ class TelnetDevice:
         try:
             # assert CheckLicence.checkLicence()
             self.tn = telnetlib.Telnet(host, 23, self.timeout)
-            self.tn.set_debuglevel(1)
+            self.tn.set_debuglevel(0)
             print('login')
             time.sleep(self.command_interval)
 
@@ -417,7 +417,7 @@ class TelnetDevice:
         self.tn.write(b'display port state ' + port.encode('utf8') + b'\n')
         return self.get_result(stop=r'config-if-epon', patern1='', patern2='')[0]
 
-    def ont_modify(self, port, ontid, mac):
+    def ont_modify(self, port, ontid, mac, force=False):
         """
         更换ONU
         :param port:
@@ -427,7 +427,19 @@ class TelnetDevice:
         try:
             logger.debug("ont modify {} {} mac {}".format(port, ontid, mac))
             self.tn.write(b'ont modify ' + port.encode('utf8') + b' ' + ontid.encode('utf8') + b' mac ' + mac.encode('utf8') + b'\n')
-            return True
+            time.sleep(1)
+            if self.tn.expect([b'registered', ], self.command_timeout):
+                if force:
+                    self.tn.expect([b'[n]:', ], self.command_interval)
+                    self.tn.write(b'y\n')
+                    self.tn.expect([b'config-if-epon', ], self.command_timeout)
+                    return True
+                else:
+                    self.tn.write(b'n\n')
+                    return False
+            elif self.tn.expect([b'config-if-epon', ], self.command_timeout):
+                print('modify success')
+                return True
         except Exception as e:
             logger.error(e)
             return False

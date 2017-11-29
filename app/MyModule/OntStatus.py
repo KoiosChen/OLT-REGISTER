@@ -1,16 +1,19 @@
 from ..models import ontinfo_translate, MachineRoom, Device
-from ..my_func import FindByMac, get_device_info
+from .FindByMac import FindByMac
+from .GetDeviceInfo import get_device_info
 from .. import logger
 from . import GetDeviceInfo
 import re
 
 
-def ont_status(mac, machine_room, level='verbose'):
+def ont_status(mac, machine_room, level='verbose', device=None):
     # machine_room 可以传入机房ID， 也可以传入机房名称
-    if re.search('\d+', machine_room):
+    if device is None and re.search('\d+', machine_room):
         device_list = GetDeviceInfo.get_device_info(machine_room)
-    else:
+    elif device is None:
         device_list = GetDeviceInfo.get_device_info(MachineRoom.query.filter_by(name=machine_room).first().id)
+    elif device is not None:
+        device_list = Device.query.filter_by(id=device).all()
 
     if device_list:
         # 解决一个机房下有多个OLT的问题
