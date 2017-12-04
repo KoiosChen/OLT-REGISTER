@@ -34,7 +34,7 @@ def get_device_info(machine_room_id):
     :param machine_room_id:
     :return:
     """
-    device_info = Device.query.filter_by(machine_room_id=machine_room_id).all()
+    device_info = Device.query.filter_by(machine_room_id=machine_room_id, status=1).all()
     return device_info if device_info else []
 
 
@@ -772,28 +772,40 @@ def ont_register_func(**kwargs):
             logger.debug(fsp)
             f, s, p = fsp.split('/')
             tlt.go_into_interface_mode(fsp)
-            ont_add_result = tlt.add_ont(p, mac, lineprofile_id, srvprofile_id, ont_model)
+
+            try_once = True
             success, ont_id = False, False
-            for line in ont_add_result:
-                logger.debug('ont add result {}'.format(line))
-                if re.search(r'ONT MAC is already exist', line):
-                    if force:
-                        this_mac_location = OntStatus.ontLocation(device_id=device_id, mac=mac)
-                        fsp, ontid_ = this_mac_location[device_id]
-                        f_, s_, p_ = fsp.split('/')
-                        release_result = release_ont_func(device_id, f_, s_, p_, ontid_, mac)
-                        if not release_result:
-                            logger.warning('This ONT is already exist {}'.format(mac))
-                            return {"status": "fail", "content": flash_message['6']} if api_version else 6
 
-                if re.search(r'upper limit', line):
-                    logger.warning('ONT {} add fail: The number of ONT in port already reach upper limit'.format(mac))
-                    return {"status": "fail", "content": flash_message['7']} if api_version else 7
+            while try_once or force:
+                try_once = False
+                ont_add_result = tlt.add_ont(p, mac, lineprofile_id, srvprofile_id, ont_model)
 
-                if re.findall(r'success\s*:\s*(\d+)', line):
-                    success = re.findall(r'success\s*:\s*(\d+)', line)[0]
-                elif re.findall(r'ONTID\s*:\s*(\d+)', line):
-                    ont_id = re.findall(r'ONTID\s*:\s*(\d+)', line)[0]
+                for line in ont_add_result:
+                    logger.debug('ont add result {}'.format(line))
+                    if re.search(r'ONT MAC is already exist', line):
+                        if force:
+                            try:
+                                this_mac_location = OntStatus.ontLocation(device_id=device_id, mac=mac)
+                                fsp, ontid_ = this_mac_location[device_id]
+                                f_, s_, p_ = fsp.split('/')
+                                release_result = release_ont_func(device_id, f_, s_, p_, ontid_, mac)
+                                if not release_result:
+                                    logger.warning('This ONT is already exist {}'.format(mac))
+                                    return {"status": "fail", "content": flash_message['6']} if api_version else 6
+                            except Exception as e:
+                                return {"status": "fail", "content": str(e)} if api_version else 6
+
+                    if re.search(r'upper limit', line):
+                        logger.warning('ONT {} add fail: The number of ONT in port already reach upper limit'.format(mac))
+                        return {"status": "fail", "content": flash_message['7']} if api_version else 7
+
+                    if re.findall(r'success\s*:\s*(\d+)', line):
+                        success = re.findall(r'success\s*:\s*(\d+)', line)[0]
+                        force = False
+                    elif re.findall(r'ONTID\s*:\s*(\d+)', line):
+                        ont_id = re.findall(r'ONTID\s*:\s*(\d+)', line)[0]
+                        force = False
+
             if success and ont_id:
                 # write log
                 logger.info('ONT regist successfully {}. MAC {} fsp {} ontid {}'.format(success, mac, fsp, ont_id))
@@ -931,7 +943,7 @@ def release_ont_func(device_id, f, s, p, ont_id, mac, to_status=None):
 
 
 def ont_autofind_func(machine_room='', mac='', device_list=''):
-    device_list = get_device_info(machine_room) if machine_room else Device.query.filter_by(id=device_list).all()
+    device_list = get_device_info(machine_room) if machine_room else Device.query.filter_by(id=device_list, status=1).all()
     autofind_result = defaultdict(list)
     if device_list:
         for device in device_list:

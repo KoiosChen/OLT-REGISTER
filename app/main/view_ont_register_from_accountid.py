@@ -54,7 +54,7 @@ def regist_precheck():
     :return:
     """
     account_id = request.form.get('account_id')
-    mac = request.form.get('mac')
+    mac = request.form.get('mac').upper()
     machine_room_id = request.form.get('machine_room_id')
     currentState = request.form.get('currentState')
     customerAddr = request.form.get('communityName') + '/' + request.form.get('aptNo')
@@ -221,6 +221,7 @@ def regist_precheck():
                         args['device_id'] = record_action['device_id']
                         args['remarks'] = json.dumps({"modify_reason": record_action["action"],
                                                       "account_current_status": currentState})
+                        args['force'] = True
                         register_result = ont_register_func(**args)
 
                         # api_version 为0.1 返回消息格式为{"status": "", "content": ""}
@@ -263,6 +264,7 @@ def regist_precheck():
                 args['device_id'] = device_id
                 args['remarks'] = json.dumps({"modify_reason": "4",
                                               "account_current_status": currentState})
+                args['force'] = True
                 register_result = ont_register_func(**args)
 
                 # api_version 为0.1 返回消息格式为{"status": "", "content": ""}
