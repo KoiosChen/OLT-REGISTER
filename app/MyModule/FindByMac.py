@@ -31,7 +31,7 @@ def FindByMac(mac, ip, username, password, level='base'):
             optical = tlt.check_optical_info(p, id=ont_id)
             register_info = tlt.check_register_info(p, id=ont_id)
             tlt.telnet_close()
-            return optical, register_info, '_', '_'
+            return optical, result, register_info, '_'
         else:
             tlt.telnet_close()
             return False, False, False, False
