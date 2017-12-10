@@ -37,10 +37,11 @@ def FindByMac(mac, ip, username, password, level='base'):
             return False, False, False, False
     elif level == 'fsp':
         if fsp:
-            return fsp, ont_id
+            tlt.telnet_close()
+            return fsp, ont_id, '_', '_'
         else:
             tlt.telnet_close()
-            return False
+            return False, False, False, False
     elif level == 'optical':
         if fsp:
             tlt.go_into_interface_mode(fsp)

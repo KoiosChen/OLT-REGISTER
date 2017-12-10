@@ -82,9 +82,11 @@ def ontLocation(device_id='', machine_room='', mac=''):
         for device in device_list:
             logger.debug('telnet device {} {}'.format(device.device_name, device.ip))
             try:
-                fsp, ontid = FindByMac(mac, device.ip, device.login_name, device.login_password, level='fsp')
+                fsp, ontid, _, _ = FindByMac(mac, device.ip, device.login_name, device.login_password, level='fsp')
                 if fsp and ontid:
                     return {device_id: (fsp, ontid)}
+                else:
+                    return False
             except Exception as e:
                 logger.error(e)
                 return False
