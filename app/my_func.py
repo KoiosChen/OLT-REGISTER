@@ -880,7 +880,10 @@ def release_ont_func(device_id, f, s, p, ont_id, mac, to_status=None):
     # if the parameters are right
     # then execute ont delete command
 
-    device_info = Device.query.filter_by(id=device_id).first()
+    device_info = Device.query.filter_by(id=device_id, status='1').first()
+    if not device_info:
+        flash('此设备无效，不能在线删除')
+        return False
     ip = device_info.ip
     username = device_info.login_name
     password = device_info.login_password

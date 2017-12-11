@@ -335,10 +335,13 @@ def ont_register_inspector_list():
         else:
             machine_room_name = [i[0] for i in get_machine_room_by_area(session.get('permit_machine_room'))]
     if not area_select[0]:
+        """
         if Area.query.filter_by(id=session['LOGINAREA']).first().area_machine_room == '0xffffffffff':
             area_select[0] = '%'
         else:
             area_select[0] = str(session.get('LOGINAREA'))
+        """
+        area_select[0] = '%'
     if not ont_model_choice[0]:
         ont_model_choice[0] = '%'
 
