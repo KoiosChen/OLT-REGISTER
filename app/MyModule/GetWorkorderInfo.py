@@ -25,7 +25,7 @@ def customerInfoQueryAction(query_info, loginName):
             'http://1.14.191.22/NGOSS/androidCustomerInfoQueryAction.action?{type}={query_info}&loginUserId={loginName}&pageSize=1&pageNum=0')
         r = fb(type=_type, query_info=query_info, loginName=loginName)
         result = r.json()
-        if result['customerListInfo']['customerList'] is None and i == 0:
+        if not result['customerListInfo']['customerList'] and i == 0:
             i += 1
             continue
         else:

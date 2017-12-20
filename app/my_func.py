@@ -790,8 +790,8 @@ def ont_register_func(**kwargs):
                                 f_, s_, p_ = fsp.split('/')
                                 release_result = release_ont_func(device_id, f_, s_, p_, ontid_, mac)
                                 if not release_result:
-                                    logger.warning('This ONT is already exist {}'.format(mac))
-                                    return {"status": "fail", "content": flash_message['6']} if api_version else 6
+                                    logger.warning('Release {} fail'.format(mac))
+                                    return {"status": "fail", "content": flash_message['6'] + ', 并且删除失败，请联系网管'} if api_version else 6
                             except Exception as e:
                                 return {"status": "fail", "content": str(e)} if api_version else 6
 
