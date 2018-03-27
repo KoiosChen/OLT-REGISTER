@@ -14,7 +14,7 @@ class Config:
     SESSION_USE_SIGNER = True
     PERMANENT_SESSION_LIFETIME = timedelta(hours=10)
 
-    SQLALCHEMY_POOL_SIZE = 300
+    # SQLALCHEMY_POOL_SIZE = 300
     FLASKY_ADMIN = 'peter.chen@mbqianbao.com'
 
     # FLASKY_ADMIN = os.environ.get('FLASKY_ADMIN')

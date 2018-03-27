@@ -9,6 +9,16 @@ from flask_apscheduler import APScheduler
 from flask_session import Session
 import logging
 import redis
+from flask_sqlalchemy import SQLAlchemy as SQLAlchemyBase
+from sqlalchemy.pool import NullPool
+
+
+class SQLAlchemy(SQLAlchemyBase):
+  def apply_driver_hacks(self, app, info, options):
+    super(SQLAlchemy, self).apply_driver_hacks(app, info, options)
+    options['poolclass'] = NullPool
+    options.pop('pool_size', None)
+
 
 # 用于存放监控记录信息，例如UPS前序状态，需要配置持久化
 redis_db = redis.Redis(host='localhost', port=6379, db=7)

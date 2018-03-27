@@ -2,7 +2,7 @@ from flask_wtf import Form
 from flask import session
 from wtforms.validators import DataRequired, Email, Length, Regexp, EqualTo, IPAddress, Optional, NumberRange, ValidationError
 from wtforms import StringField, SubmitField, PasswordField, SelectField, SelectMultipleField, DateTimeField, \
-    RadioField, IntegerField, BooleanField
+    RadioField, IntegerField, BooleanField, TextAreaField
 from ..models import Role, Area, User
 from ..my_func import get_machine_room_by_area, get_device_name
 
@@ -181,7 +181,8 @@ class OntRegisterInspector(Form):
 
     def get_area(self, loginarea):
         area_all = [(str(a.id), a.area_name) for a in Area.query.all()]
-        if Area.query.filter_by(id=loginarea).first().area_machine_room == '0xffffffffff':
+        loginarea_ = Area.query.filter_by(id=loginarea).first()
+        if loginarea_ and loginarea_.area_machine_room == '0xffffffffff':
             return area_all
         else:
             if not loginarea:
@@ -278,6 +279,12 @@ class AreaModal(Form):
     def __init__(self):
         super(AreaModal, self).__init__()
         self.machine_room_name.choices = get_machine_room_by_area(session.get('permit_machine_room'))
+
+
+class PcapOrder(Form):
+    accountId = StringField('用户编号', validators=[DataRequired()])
+    question = TextAreaField('问题描述', validators=[DataRequired()])
+    submit = SubmitField('提交')
 
 
 

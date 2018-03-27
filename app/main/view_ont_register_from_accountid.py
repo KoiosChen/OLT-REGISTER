@@ -70,6 +70,7 @@ def regist_precheck():
     ont_regist_check = OntRegister.query.filter_by(username=account_id, status=1).all()
 
     # 验证历史注册记录中的信息与设备上的配置，主要是接口相符；正常情况，verify_onu_location只会有一条
+    # 如若注册记录和实际配置相符合，则会append记录到此list中
     verify_onu_location = []
 
     for the_ont_record in ont_regist_check:
@@ -82,7 +83,7 @@ def regist_precheck():
                 the_ont_record.f, the_ont_record.s, the_ont_record.p):
             verify_onu_location.append((the_ont_record, the_location[the_ont_record.device_id][1]))
 
-    # 用于注册新ONU的变量
+    # 用于注册新ONU的参数
     args = {'reporter_name': session.get('LOGINNAME'),
             'reporter_group': User.query.filter_by(email=session.get('LOGINUSER')).first().area,
             'register_name': session.get('LOGINNAME'),
@@ -97,12 +98,14 @@ def regist_precheck():
             'device_id': '',
             'status': 1,
             'service_type': service_type,
-            'api_version': 0.1
+            'api_version': 0.1    # 如果没有api_version参数，则注册函数返回值为数值，非jason，新版本会报错
             }
 
     # 如果上述验证都存在，则判断是换口还是换猫
     if ont_regist_check and verify_onu_location:
         regist_history = []
+
+        # 这个for循环来具体区分采用什么操作
         for index, (record, ontId) in enumerate(verify_onu_location):
             print(record)
             for device_id, fsp in autofind_result.items():
@@ -142,23 +145,23 @@ def regist_precheck():
             # 如果regist_history为空，表示没有找到需要注册的ONU，原则上不会运行到这个判断。为老代码，暂不删除
             return jsonify({"status": "fail", "content": "在所选机房未找到此光猫（{}）".format(mac)})
         else:
-            # 使用operate_cache来存放四要素信息，如果存在，表明这条历史注册记录已经被处理过
+            # 使用operate_cache来存放四要素信息（device_id, slot, port, mac），如果存在，表明这条历史注册记录已经被处理过
             operate_cache = []
-            print(regist_history)
+
             for record_action in regist_history:
-                print(record_action)
                 robj = record_action["record_obj"]
                 if (robj.device_id, robj.s, robj.p, robj.mac) in operate_cache:
+                    # 如果四要素在operate_cache中，表示已经出了相同的记录，此处发现重复的注册记录，直接将记录状态修改为998，即为删除
                     robj.status = 998
                     db.session.add(robj)
                     db.session.commit()
                 else:
+                    # 为操作过的记录，直接先cache下来，用于后续判断是否有重复记录
                     operate_cache.append((robj.device_id, robj.s, robj.p, robj.mac))
 
                     # 如果不存在四要素的cache，说明是第一次匹配到这条历史记录
+                    # 以下是进行具体的换猫、换口等操作
                     if record_action["action"] == "1":
-                        # 换猫
-
                         # 换猫操作，其中的ontid为实际目前的ontid
                         logger.info("do ont modify for record {}".format(robj.id))
                         modify_result = ont_modify_func(robj.device_id, robj.f, robj.s, robj.p,
@@ -254,13 +257,14 @@ def regist_precheck():
             return jsonify({"status": "ok", "content": [r["return_info"] for r in regist_history]})
 
     elif not verify_onu_location or not ont_regist_check:
+        # 开始新光猫注册
         for device_id, fsp in autofind_result.items():
             print("autofind result:", device_id, fsp, mac)
             if not fsp:
+                # 例如一个机房下有多台OLT的情况，那么autofind_result可能会有多条记录
                 # 如果fsp为 False， 表示在这个设备上未找到ONU
                 continue
             else:
-                # 若释放成功，则开始注册操作
                 args['device_id'] = device_id
                 args['remarks'] = json.dumps({"modify_reason": "4",
                                               "account_current_status": currentState})
@@ -269,6 +273,7 @@ def regist_precheck():
 
                 # api_version 为0.1 返回消息格式为{"status": "", "content": ""}
                 if register_result.get('status') == 'ok':
+                    # 删除历史记录中无用的信息
                     if ont_regist_check:
                         for r in ont_regist_check:
                             r.status = 998
@@ -279,6 +284,8 @@ def regist_precheck():
                                                            create_time=time.localtime())
                             db.session.add(modify_record)
                             db.session.add(r)
+
+                            # 执行标记删除操作
                             for rr in ont_regist_check:
                                 if rr.id != r.id:
                                     rr.status = 998

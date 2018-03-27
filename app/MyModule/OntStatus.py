@@ -77,6 +77,13 @@ def ont_status(mac, machine_room, level='verbose', device=None):
 
 
 def ontLocation(device_id='', machine_room='', mac=''):
+    """
+
+    :param device_id: 某台设备ID
+    :param machine_room:
+    :param mac:
+    :return:
+    """
     device_list = get_device_info(machine_room) if machine_room else Device.query.filter_by(id=device_id).all()
     if device_list:
         for device in device_list:

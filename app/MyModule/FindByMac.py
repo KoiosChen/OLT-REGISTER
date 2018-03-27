@@ -53,4 +53,5 @@ def FindByMac(mac, ip, username, password, level='base'):
             tlt.telnet_close()
             return False, False, False, False
     else:
+        tlt.telnet_close()
         return fsp, ont_id, result, '_'

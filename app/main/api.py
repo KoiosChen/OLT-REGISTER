@@ -12,17 +12,20 @@ def get_customer_info():
     :return:
     """
     if not redis_db.get('PERMIT_LIST'):
-        redis_db.set('PERMIT_LIST', json.dumps({'permit': [], 'not permit': []}))
+        redis_db.set('PERMIT_LIST', json.dumps({'permit': ["all"], 'not permit': []}))
     permit_ip = json.loads(redis_db.get('PERMIT_LIST').decode())['permit']
     if 'all' in permit_ip or request.headers.get('X-Forwarded-For', request.remote_addr) in permit_ip:
         try:
             account_id = request.json['account_id']
             loginName = request.json['loginName']
+            hidden_param = request.json.get('_hidden_param')
 
             content = customerInfoQueryAction(account_id, loginName)
+            print(content)
 
             if len(content['customerListInfo']['customerList']) > 0:
-                content['customerListInfo']['customerList'][0]['password'] = ''
+                if not hidden_param:
+                    content['customerListInfo']['customerList'][0]['password'] = ''
 
                 return jsonify({'status': 'OK', 'content': content})
             else:

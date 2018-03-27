@@ -310,9 +310,9 @@ def get_ont_detail(id):
     if not device_info.status:
         logger.warning('Status %s. This device is not available in func \'AnalysisONT\'' % device_info.status)
         exit()
-    else:
-        tlnt = Telnet5680T.TelnetDevice(mac='', host=device_info.ip, username=device_info.login_name,
-                                        password=device_info.login_password)
+
+    tlnt = Telnet5680T.TelnetDevice(mac='', host=device_info.ip, username=device_info.login_name,
+                                    password=device_info.login_password)
 
     # get the number of boards
     board_id_list = [line.strip().split()[0] for line in tlnt.check_board_info()]
@@ -447,9 +447,12 @@ def test():
         print_data = []
         print_data.append(head)
         print(device_id.machine_room.name)
-        for f in [i.f for i in ONTDetail.query.group_by('f').filter_by(device_id=device_id.id, run_state='online').all()]:
-            for s in [i.s for i in ONTDetail.query.group_by('s').filter_by(device_id=device_id.id, f=f, run_state='online').all()]:
-                for p in [i.p for i in ONTDetail.query.group_by('p').filter_by(device_id=device_id.id, f=f, s=s, run_state='online').all()]:
+        for f in [i.f for i in
+                  ONTDetail.query.group_by('f').filter_by(device_id=device_id.id, run_state='online').all()]:
+            for s in [i.s for i in
+                      ONTDetail.query.group_by('s').filter_by(device_id=device_id.id, f=f, run_state='online').all()]:
+                for p in [i.p for i in ONTDetail.query.group_by('p').filter_by(device_id=device_id.id, f=f, s=s,
+                                                                               run_state='online').all()]:
                     print('{}/{}/{}'.format(f, s, p), end='\t')
                     total = ONTDetail.query.filter(ONTDetail.device_id == device_id.id,
                                                    ONTDetail.f == f,
@@ -467,8 +470,11 @@ def test():
                                                    or_(ONTDetail.rx_optical_power < -28,
                                                        ONTDetail.olt_rx_ont_optical_power < -28)).count()
                     if not total:
-                        print('{}   {}  {}  {}%    {}%'.format(total, losi, rx_31, int(losi / total * 10000) / 100, int(rx_31 / total * 10000) / 100), end='')
-                        print_data.append([str(f) + '/' + str(s) + '/' + str(p), total, losi, rx_31, str(round((losi / total * 10000) / 100, 2)) + '%',  str(round((rx_31 / total * 10000) / 100, 2)) + '%'])
+                        print('{}   {}  {}  {}%    {}%'.format(total, losi, rx_31, int(losi / total * 10000) / 100,
+                                                               int(rx_31 / total * 10000) / 100), end='')
+                        print_data.append([str(f) + '/' + str(s) + '/' + str(p), total, losi, rx_31,
+                                           str(round((losi / total * 10000) / 100, 2)) + '%',
+                                           str(round((rx_31 / total * 10000) / 100, 2)) + '%'])
                     else:
                         print('{}   {}  {}  {}%    {}%'.format(total, losi, rx_31, 0, 0), end='')
                         print_data.append([str(f) + '/' + str(s) + '/' + str(p), total, losi, rx_31, '0%', '0%'])
@@ -679,7 +685,7 @@ def get_cevlan(device_id, f, s, p, service_type):
     try:
         return str(min(set(source) - set(list2)))
     except ValueError:
-        logger.error('doesnot find cevlan for {} {}/{}/{} {}'.format(device_id, f, s, p, service_type))
+        logger.error('does not find cevlan for {} {}/{}/{} {}'.format(device_id, f, s, p, service_type))
         return False
 
 
@@ -721,7 +727,7 @@ def ont_register_func(**kwargs):
                      '2': '未发现光猫,请检查线路或联系网管',
                      '3': '发现光猫, 但添加ONT失败,请联系值班网管',
                      '4': '发现光猫并注册, 但是绑定native-vlan失败, 请联系值班网管',
-                     '5': '光猫链接超时',
+                     '5': 'OLT远程管理失败',
                      '6': '此光猫已经被注册在其它PON口, 请联系值班网管',
                      '7': '此PON口已达到注册上线,请联系值班网管调整',
                      '104': '发现光猫并注册, 但是绑定native-vlan失败, 系统回滚成功, 请联系值班网管处理',
@@ -754,6 +760,7 @@ def ont_register_func(**kwargs):
     lineprofile_id = '2'
     srvprofile_id = srvprofile_dict[kwargs.get('ont_model')]
     api_version = kwargs.get('api_version', 0)
+    # 如果force = True， 用于强制换口
     force = kwargs.get('force', False)
 
     # write log
@@ -785,18 +792,34 @@ def ont_register_func(**kwargs):
                     if re.search(r'ONT MAC is already exist', line):
                         if force:
                             try:
+                                # 如果强制换口，则在本OLT上查找对应的MAC
                                 this_mac_location = OntStatus.ontLocation(device_id=device_id, mac=mac)
+
+                                # 如果查找对应ONU失败，则返回错误原因
+                                if not this_mac_location:
+                                    tlt.telnet_close()
+                                    return {"status": "fail",
+                                            "content": "换口时查找ONU {} 失败，请联系网管处理".format(mac)} if api_version else 6
+
+                                # 如果找到，则fsp及ontid_为onu目前所在的端口位置
                                 fsp, ontid_ = this_mac_location[device_id]
                                 f_, s_, p_ = fsp.split('/')
+
+                                # 强制删除此ONU
                                 release_result = release_ont_func(device_id, f_, s_, p_, ontid_, mac)
                                 if not release_result:
                                     logger.warning('Release {} fail'.format(mac))
-                                    return {"status": "fail", "content": flash_message['6'] + ', 并且删除失败，请联系网管'} if api_version else 6
+                                    tlt.telnet_close()
+                                    return {"status": "fail",
+                                            "content": flash_message['6'] + ', 并且删除失败，请联系网管'} if api_version else 6
                             except Exception as e:
+                                tlt.telnet_close()
                                 return {"status": "fail", "content": str(e)} if api_version else 6
 
                     if re.search(r'upper limit', line):
-                        logger.warning('ONT {} add fail: The number of ONT in port already reach upper limit'.format(mac))
+                        logger.warning(
+                            'ONT {} add fail: The number of ONT in port already reach upper limit'.format(mac))
+                        tlt.telnet_close()
                         return {"status": "fail", "content": flash_message['7']} if api_version else 7
 
                     if re.findall(r'success\s*:\s*(\d+)', line):
@@ -844,6 +867,7 @@ def ont_register_func(**kwargs):
                         db.session.add(ont_regist_data)
                         db.session.commit()
                         logger.info('Insert the ont register info into db successful')
+                        tlt.telnet_close()
                         return {"status": "ok", "content": ont_regist_data.id} if api_version else regist_status
                     except Exception as e:
                         logger.error('Insert the ont register info error {}'.format(e))
@@ -853,8 +877,8 @@ def ont_register_func(**kwargs):
                     logger.warning('No cevlan found')
                     regist_status = 7
 
-                # Judge to rollback
-                # if ont added, but bind vlan fail, it's needed to delete the ont that just added
+                # 判断是否回滚
+                # 如果ont_add成功，但是绑定cevlan失败，则进行回滚
                 if regist_status == 4 or regist_status == 7 or regist_status == 8:
                     logger.warning('Start to rollback')
                     regist_status += 100 if release_ont_func(device_id, f, s, p, ont_id, mac) else 200
@@ -946,7 +970,8 @@ def release_ont_func(device_id, f, s, p, ont_id, mac, to_status=None):
 
 
 def ont_autofind_func(machine_room='', mac='', device_list=''):
-    device_list = get_device_info(machine_room) if machine_room else Device.query.filter_by(id=device_list, status=1).all()
+    device_list = get_device_info(machine_room) if machine_room else Device.query.filter_by(id=device_list,
+                                                                                            status=1).all()
     autofind_result = defaultdict(list)
     if device_list:
         for device in device_list:
@@ -1336,8 +1361,11 @@ def ont_modify_func(device_id, f, s, p, ontid, mac, force=False):
             tlt = Telnet5680T.TelnetDevice('', ip, username, password)
             tlt.go_into_interface_mode('/'.join([f, s, p]))
             modify_result = tlt.ont_modify(p, ontid, mac, force=force)
-
-            return {"status": "ok", "content": "更换光猫成功, 请确认用户上网正常"} if modify_result else {"status": "fail", "content": "更换光猫失败"}
+            tlt.telnet_close()
+            return {"status": "ok", "content": "更换光猫成功, 请确认用户上网正常"} if modify_result else {"status": "fail",
+                                                                                           "content": "更换光猫失败"}
         except Exception as e:
             logger.error(e)
             return {"status": "fail", "content": "更换光猫操作异常，请联系值班网管"}
+    else:
+        return {"status": "fail", "content": "更换光猫操作异常, 未找到设备信息, 请联系值班网管"}
