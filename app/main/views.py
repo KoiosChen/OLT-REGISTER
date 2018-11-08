@@ -134,6 +134,7 @@ def manager_register():
     ont_register
     :return:  1: success 2: not find ont 3: find ont, but regist fail
     """
+    account_id = request.args.get('account_id')
     form = OntRegisterFormByManager()
     flash_message = {'1': '光猫注册成功, 请使用\'ONU查询\'功能确认ONU状态',
                      '2': '未发现光猫,请检查线路或联系网管',
@@ -209,7 +210,7 @@ def manager_register():
         add_log(data=data)
         session['REGIST_RESULT'] = ''
         return redirect(url_for('.index'))
-    return render_template('manager_register.html', form=form)
+    return render_template('manager_register.html', form=form, account_id=account_id)
 
 
 @main.route('/user_register', methods=['GET', 'POST'])

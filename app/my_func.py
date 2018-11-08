@@ -12,6 +12,7 @@ from .MyModule import SaveData, OntStatus
 from flask import flash, session
 from collections import defaultdict
 import sys
+import random
 
 
 def get_machine_room_by_area(permit_machine_room):
@@ -623,67 +624,69 @@ def add_log(data):
 def get_cevlan(device_id, f, s, p, service_type):
     """
     update @2017-03-08 for separation of pevlan
+    update @2018-09-26 for CUCC, if there is not enough cevlan, then the program will select a cevlan random.
     :param device_id:
     :param f:
     :param s:
     :param p:
-    :param service_type: 用于确认使用的外层vlan的类型, 1: 社区, 2: 商业, 3: 代理, 4.....
+    :param service_type: 用于确认使用的外层vlan的类型, 1: 社区, 2: 商业, 3: 代理, 4: 联通 .....
     :return:
     """
     logger.info('start to get cevlan on device_id {} {}/{}/{}'.format(device_id, f, s, p))
     logger.info('regist the onu in cevlan as service type {}'.format(service_type))
 
-    service_port = ServicePort.query.filter_by(device_id=device_id, f=f, s=s, p=p).all()
-    source = []
-    """
-    2017-03-08 增加target_pevlan type list, 用于存放找到的PEVLAN, 后续查找CEVLAN的时候, 通过这些PEVLAN找到相关FSP来查找已经使用的
-    celvan。 目的是使cevlan在该PEVLAN下不重复
-    """
-    target_pevlan = []
-
-    for sp in service_port:
-        # write log
-        logger.debug('service port {}'.format(sp))
-
-        pevlan = PeVlan.query.filter_by(device_id=device_id, pevlan=sp.pevlan).first()
-
-        # write log
-        logger.debug('find the pevlan({})\'s service type {}'.format(pevlan, pevlan.service_type))
-
-        if pevlan.service_type == int(service_type):
-            # write log
-            logger.debug('find the service type, target vlan is {}'.format(pevlan.pevlan))
-            target_pevlan.append(pevlan.pevlan)
-
-            vlan_start, vlan_stop = re.findall(r'(\d+)-?(\d+)?', sp.cevlan_range)[0]
-            vlan_stop = vlan_stop if vlan_stop else vlan_start
-
-            # write log
-            logger.debug('the pevlan\'s cevlan range is {}  to {}'.format(vlan_start, vlan_stop))
-
-            source.extend(list(range(int(vlan_start), int(vlan_stop) + 1)))
-
-    list2 = []
-    # 2017-03-08 通过查找所有的pevlan对应的fsp, 然后通过fsp查找已经注册使用的cevlan,确保在一个pevlan下没有重复使用的cevlan
-    target_fsp = []
-    for tp in target_pevlan:
-        sp_by_pevlan = ServicePort.query.filter_by(device_id=device_id, pevlan=tp).all()
-        target_fsp.append([(pe.f, pe.s, pe.p) for pe in sp_by_pevlan])
-
-    for frame, slot, port in set(target_fsp[0]):
-        ont_regist_info = CeVlan.query.filter_by(device_id=device_id, f=frame, s=slot, p=port).all()
-        if ont_regist_info:
-            for info in ont_regist_info:
-                logger.debug(info)
-                if len(info.cevlan) > 0:
-                    if int(info.cevlan) in source:
-                        logger.debug('cevlan in source: {}'.format(info.cevlan))
-                        list2.append(int(info.cevlan))
-        else:
-            list2.append(2)
-
     try:
-        return str(min(set(source) - set(list2)))
+        service_port = ServicePort.query.filter_by(device_id=device_id, f=f, s=s, p=p).all()
+        source = []
+        """
+        2017-03-08 增加target_pevlan type list, 用于存放找到的PEVLAN, 后续查找CEVLAN的时候, 通过这些PEVLAN找到相关FSP来查找已经使用的
+        celvan。 目的是使cevlan在该PEVLAN下不重复
+        """
+        target_pevlan = []
+
+        for sp in service_port:
+            # write log
+            logger.debug('service port {}'.format(sp))
+
+            pevlan = PeVlan.query.filter_by(device_id=device_id, pevlan=sp.pevlan).first()
+
+            # write log
+            logger.debug('find the pevlan({})\'s service type {}'.format(pevlan, pevlan.service_type))
+
+            if pevlan.service_type == int(service_type):
+                # write log
+                logger.debug('find the service type, target vlan is {}'.format(pevlan.pevlan))
+                target_pevlan.append(pevlan.pevlan)
+
+                vlan_start, vlan_stop = re.findall(r'(\d+)-?(\d+)?', sp.cevlan_range)[0]
+                vlan_stop = vlan_stop if vlan_stop else vlan_start
+
+                # write log
+                logger.debug('the pevlan\'s cevlan range is {}  to {}'.format(vlan_start, vlan_stop))
+
+                source.extend(list(range(int(vlan_start), int(vlan_stop) + 1)))
+
+        list2 = []
+        # 2017-03-08 通过查找所有的pevlan对应的fsp, 然后通过fsp查找已经注册使用的cevlan,确保在一个pevlan下没有重复使用的cevlan
+        target_fsp = []
+        for tp in target_pevlan:
+            sp_by_pevlan = ServicePort.query.filter_by(device_id=device_id, pevlan=tp).all()
+            target_fsp.append([(pe.f, pe.s, pe.p) for pe in sp_by_pevlan])
+
+        for frame, slot, port in set(target_fsp[0]):
+            ont_regist_info = CeVlan.query.filter_by(device_id=device_id, f=frame, s=slot, p=port).all()
+            if ont_regist_info:
+                for info in ont_regist_info:
+                    logger.debug(info)
+                    if len(info.cevlan) > 0:
+                        if int(info.cevlan) in source:
+                            logger.debug('cevlan in source: {}'.format(info.cevlan))
+                            list2.append(int(info.cevlan))
+            else:
+                list2.append(2)
+        guess_cevlan = (min(set(source) - set(list2)))
+        return str(guess_cevlan) if guess_cevlan else random.choice(source)
+
     except ValueError:
         logger.error('does not find cevlan for {} {}/{}/{} {}'.format(device_id, f, s, p, service_type))
         return False

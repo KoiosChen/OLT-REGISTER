@@ -66,7 +66,7 @@ class OntRegisterForm(Form):
                                    validators=[DataRequired()],
                                    default='1')
     service_type = SelectField(label='请选择服务类型',
-                               choices=[('1', '社区'), ('2', '商业'), ('3', '代理')],
+                               choices=[('1', '社区'), ('2', '商业'), ('3', '代理'), ('4', '联通')],
                                validators=[DataRequired()],
                                default='1')
     submit = SubmitField('提交')
@@ -196,7 +196,7 @@ class MaintainPevlanForm(Form):
     device_name = SelectField(label='请选择OLT设备:')
     pevlan = StringField(label='请输入外层VLAN:')
     service_type = SelectField(label='请选择服务类型',
-                               choices=[('1', '社区'), ('2', '商业'), ('3', '代理')],
+                               choices=[('1', '社区'), ('2', '商业'), ('3', '代理'), ('4', '联通')],
                                validators=[DataRequired()],
                                default='1')
     submit = SubmitField('提交')

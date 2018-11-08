@@ -39,6 +39,9 @@
                         if (msg_json['status'].match(/OK/)) {
                             window.location.href='ont_register_from_accountid' + '?&account_id=' + $('#account_id').val()
                         }
+                        else if (msg_json['status'].match(/CUCC/)) {
+                            window.location.href='manager_register' + '?&account_id=' + $('#account_id').val()
+                        }
                         else {
                             toastr.warning(msg_json['status']);
                         }

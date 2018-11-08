@@ -42,7 +42,8 @@ def account_search():
             # return jsonify(json.dumps({'status': 'OK'}))
             return jsonify(json.dumps({'status': '此用户编号当前状态非"开通、试用、开户",不可注册'}))
     else:
-        return jsonify(json.dumps({'status': '用户信息查询失败 请确认工单平台账号设置正确  请确认已开户'}))
+        # return jsonify(json.dumps({'status': '用户信息查询失败 请确认工单平台账号设置正确  请确认已开户'}))
+        return jsonify(json.dumps({'status': 'CUCC'}))
 
 
 @main.route('/regist_precheck', methods=['POST'])

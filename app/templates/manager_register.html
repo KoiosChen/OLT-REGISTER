@@ -23,6 +23,10 @@
     <link href="{{ url_for('static', filename='showLoading.css') }}" rel="stylesheet" media="screen" />
     <script type="text/javascript" src="{{ url_for('static', filename='jquery.showLoading.min.js') }}"></script>
     <script type="text/javascript">
+        $(document).ready(function () {
+            $("#customer_number").val({{ account_id }})
+        });
+
         $('#loading').submit(function () {
                 jQuery('#loading').showLoading();
        });
