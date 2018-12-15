@@ -255,18 +255,22 @@ class TelnetDevice:
         logger.info('User {} is releasing ont on port {} ont_id {}'.format(session['LOGINNAME'], p, id))
         self.tn.write(b'ont delete ' + p.encode('utf8') + b' ' + id.encode('utf8') + b'\n')
         time.sleep(self.command_interval)
-        deleted_flag = False
+        deleted_flag = {"status": False, "content": ""}
         for line in self.get_result(stop=r'config-if-epon', patern1='', patern2='')[0]:
             logger.debug('ont delete result: {}'.format(line))
             if re.search(r'success', line):
                 if re.findall(r'success\s*:\s*(\d+)', line)[0] == '1':
-                    deleted_flag = True
+                    deleted_flag = {"status": True}
                     logger.info('Release successful')
                     break
                 else:
                     logger.info('Release fail')
-                    return False
-        return True if deleted_flag else False
+                    return {"status": False, "content": "success 0"}
+            elif re.search(r'This configured object has some service virtual ports', line):
+                return {"status": False, "content": "This configured object has some service virtual ports"}
+            elif re.search(r'The ONT does not exist', line):
+                return {"status": False, "content": "The ONT does not exist"}
+        return deleted_flag
 
     def active_ont(self, p, id):
         print('active ont')
@@ -411,6 +415,17 @@ class TelnetDevice:
         self.tn.expect([b'<cr>', ], self.command_timeout)
         self.tn.write(b'\n\n')
         return self.get_result(stop=r'\(config\)\#', patern1='', patern2='')[0]
+
+    def display_service_port_in_interface(self, fsp):
+        print('display service port fsp')
+        self.tn.write(b'display service port ' + fsp.encode('utf8') + b'\n')
+        self.tn.expect([b'<cr>', ], self.command_timeout)
+        self.tn.write(b'\n\n')
+        return self.get_result(stop=r'\(config\)\#', patern1='', patern2='')[0]
+
+    def undo_service_port(self, index):
+        print("undo service-port " + str(index))
+        self.tn.write(b'undo service-port ' + str(index).encode('utf8') + b'\n')
 
     def display_port_state(self, port):
         logger.debug('display port state x')

@@ -71,11 +71,11 @@ class OntRegisterForm(Form):
                                default='1')
     submit = SubmitField('提交')
 
-    def __init__(self, machine_room_list):
+    def __init__(self, machine_room_list=None):
         super(OntRegisterForm, self).__init__()
         if machine_room_list:
             self.machine_room_name.choices = machine_room_list
-        else:
+        elif machine_room_list is None:
             self.machine_room_name.choices = get_machine_room_by_area(session.get('permit_machine_room'))
 
 

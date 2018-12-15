@@ -310,19 +310,6 @@ def ont_register_from_accountid():
     ont_register
     :return:  1: success 2: not find ont 3: find ont, but regist fail
     """
-
-    flash_message = {'1': '光猫注册成功, 请使用\'ONU查询\'功能确认ONU状态',
-                     '2': '未发现光猫,请检查线路或联系网管',
-                     '3': '发现光猫, 但添加ONT失败,请联系值班网管',
-                     '4': '发现光猫并注册, 但是绑定native-vlan失败, 请联系值班网管',
-                     '5': 'OLT链接超时, 请联系值班网管',
-                     '6': '此光猫已经被注册在其它PON口, 请联系值班网管',
-                     '7': '此PON口已达到注册上线,请联系值班网管调整',
-                     '104': '发现光猫并注册, 但是绑定native-vlan失败, 系统回滚成功, 请联系值班网管处理',
-                     '107': '发现光猫并注册, 但设备native-vlan不存在,系统回滚成功, 请联系值班网管处理',
-                     '204': '发现光猫并注册, 但是绑定native-vlan失败, 系统回滚失败, 请联系值班网管处理',
-                     '207': '发现光猫并注册, 但设备native-vlan不存在,系统回滚成功, 请联系值班网管处理',
-                     '999': '未找到对应机房'}
     account_id = request.args.get('account_id', '1')
 
     loginName = User.query.filter_by(email=session['LOGINUSER']).first().workorder_login_name
@@ -350,69 +337,12 @@ def ont_register_from_accountid():
             return render_template('index.html')
     else:
         print('no customer info return')
-        return render_template('index.html')
+        customer_info = {}
+        form = OntRegisterFormByManager()
 
-    if form.validate_on_submit():
-        logger.info('User {} is registing an ONU {} in machine room {}, the ONU model is {}, service type is {}'.
-                    format(session['LOGINNAME'],
-                           form.mac.data,
-                           form.machine_room_name.data,
-                           form.ont_model_choice.data,
-                           form.service_type.data))
-
-        session['MAC'] = form.mac.data.upper()
-        session['CUSTOMERNUMBER'] = customer_info.get('accountId')
-        session['ONTMODEL'] = form.ont_model_choice.data
-        service_type = form.service_type.data
-
-        device_list = get_device_info(form.machine_room_name.data)
-
-        if device_list:
-            for device in device_list:
-                args = {'reporter_name': session.get('LOGINNAME'),
-                        'reporter_group': User.query.filter_by(email=session.get('LOGINUSER')).first().area,
-                        'register_name': session.get('LOGINNAME'),
-                        'remarks': customer_info.get('currentState'),
-                        'username': customer_info.get('accountId'),
-                        'user_addr': customer_info.get('communityName') + '/' + customer_info.get('aptNo'),
-                        'mac': session.get('MAC'),
-                        'ip': device.ip,
-                        'login_name': device.login_name,
-                        'login_password': device.login_password,
-                        'ont_model': session.get('ONTMODEL'),
-                        'device_id': device.id,
-                        'status': 1,
-                        'service_type': service_type
-                        }
-
-                logger.info('regist on device {}'.format(device))
-                for key, value in args.items():
-                    logger.debug('{}: {}'.format(key, value))
-
-                # ont register
-                session['REGIST_RESULT'] = ont_register_func(**args)
-
-                if session['REGIST_RESULT'] == 1:
-                    logger.info('register {} on machine room {} successful'.
-                                format(form.mac.data, form.machine_room_name.data))
-                    break
-                if session['REGIST_RESULT'] == 6:
-                    logger.info('register {} on machine room {} fail'
-                                .format(form.mac.data, form.machine_room_name.data))
-                    break
-        else:
-            session['REGIST_RESULT'] = 999
-
-        logger.debug("regist result is: {} ".format(session.get('REGIST_RESULT')))
-        flash(flash_message[str(session['REGIST_RESULT'])])
-
-        form.mac.data = ''
-        form.machine_room_name.data = ''
-        session['REGIST_RESULT'] = ''
-        return redirect(url_for('.ont_register_from_accountid'))
     if session.get('index') == 'from_index_file':
         return render_template('ont_register_from_accountid.html',
                                form=form,
-                               js=customer_info)
+                               js=customer_info, account_id=account_id)
     else:
         return render_template('index.html')

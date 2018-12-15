@@ -354,10 +354,10 @@ def get_ont_detail(id):
 
                     for ont_info in ont_select_if_exist:
                         if ont_info.device_id == device_id and \
-                                        ont_info.f == f and \
-                                        ont_info.s == s and \
-                                        ont_info.p == p and \
-                                        str(ont_info.ont_id) == ont_id:
+                                ont_info.f == f and \
+                                ont_info.s == s and \
+                                ont_info.p == p and \
+                                str(ont_info.ont_id) == ont_id:
                             on_same_fsp = ont_info.id
                         if ont_info.run_state == 'online' and ont_info.update_time >= xtime and not on_same_fsp:
                             already_exist_online = True
@@ -519,7 +519,7 @@ def start_func():
 
     func = select_func()
 
-    device_id_list = [device.id for device in Device.query.all()]
+    device_id_list = [device.id for device in Device.query.filter_by(status='1').all()]
 
     t = []
 
@@ -529,13 +529,7 @@ def start_func():
         t[index] = threading.Thread(target=func, args=(device,))
         t[index].start()
 
-    # 目前考虑异步模式
-    # for th in t:
-    #    th.join()
-
     return True
-
-    # q.join()
 
 
 def FindLOID(mac, ip, username, password):
@@ -684,8 +678,17 @@ def get_cevlan(device_id, f, s, p, service_type):
                             list2.append(int(info.cevlan))
             else:
                 list2.append(2)
-        guess_cevlan = (min(set(source) - set(list2)))
-        return str(guess_cevlan) if guess_cevlan else random.choice(source)
+        try:
+            logger.debug("source list is {}".format(str(source)))
+            logger.debug("list2 is {}".format(str(list2)))
+            guess_cevlan = (min(set(source) - set(list2)))
+        except Exception as e:
+            logger.error(str(e))
+            if source:
+                guess_cevlan = random.choice(source)
+            else:
+                guess_cevlan = False
+        return str(guess_cevlan) if guess_cevlan else False
 
     except ValueError:
         logger.error('does not find cevlan for {} {}/{}/{} {}'.format(device_id, f, s, p, service_type))
@@ -907,6 +910,36 @@ def release_ont_func(device_id, f, s, p, ont_id, mac, to_status=None):
     # if the parameters are right
     # then execute ont delete command
 
+    def _del_db():
+        try:
+            ont_register_record = \
+                OntRegister.query.filter_by(device_id=device_id, f=f, s=s, p=p, ont_id=ont_id, mac=mac).all()
+            delete_cevlan_list = []
+            for record in ont_register_record:
+                logger.debug(
+                    'The status of OntRegister record id {} is updated to {}'.format(record, str(to_status)))
+                record.status = to_status
+                db.session.add(record)
+                delete_cevlan_list.append(record.cevlan)
+            for cevlan in delete_cevlan_list:
+                logger.debug('{} {}'.format(cevlan, type(cevlan)))
+                cevlan_record = CeVlan.query.filter_by(device_id=device_id, f=f, s=s, p=p, ont_id=ont_id,
+                                                       cevlan=cevlan).all()
+                if len(cevlan_record) > 0:
+                    logger.debug(cevlan_record)
+                    for cr in cevlan_record:
+                        logger.debug('cevlan to be deleted {}'.format(cr))
+                        db.session.delete(cr)
+                else:
+                    logger.warning('no cevlan selected to delete for ont {}'.format(mac))
+            db.session.commit()
+
+            logger.info('Cevlan related is deleted in database. The status of the ont is updated to 998.')
+            return True
+        except Exception as e:
+            logger.error('write db error {}'.format(e))
+            return False
+
     device_info = Device.query.filter_by(id=device_id, status='1').first()
     if not device_info:
         flash('此设备无效，不能在线删除')
@@ -934,35 +967,22 @@ def release_ont_func(device_id, f, s, p, ont_id, mac, to_status=None):
                 break
         if find_flag:
             logger.info('ont {} find on device {} {}/{}/{} {}'.format(mac, device_id, f, s, p, ont_id))
-            if tlt.release_ont(p, ont_id):
-                try:
-                    ont_register_record = \
-                        OntRegister.query.filter_by(device_id=device_id, f=f, s=s, p=p, ont_id=ont_id, mac=mac).all()
-                    delete_cevlan_list = []
-                    for record in ont_register_record:
-                        logger.debug(
-                            'The status of OntRegister record id {} is updated to {}'.format(record, str(to_status)))
-                        record.status = to_status
-                        db.session.add(record)
-                        delete_cevlan_list.append(record.cevlan)
-                    for cevlan in delete_cevlan_list:
-                        logger.debug('{} {}'.format(cevlan, type(cevlan)))
-                        cevlan_record = CeVlan.query.filter_by(device_id=device_id, f=f, s=s, p=p, ont_id=ont_id,
-                                                               cevlan=cevlan).all()
-                        if len(cevlan_record) > 0:
-                            logger.debug(cevlan_record)
-                            for cr in cevlan_record:
-                                logger.debug('cevlan to be deleted {}'.format(cr))
-                                db.session.delete(cr)
+            release_result = tlt.release_ont(p, ont_id)
+            if release_result["status"]:
+                return _del_db()
+            elif release_result['content'] == 'This configured object has some service virtual ports':
+                tlt.quit()
+                int_service_port = tlt.display_service_port_in_interface(fsp)
+                for isp in int_service_port:
+                    if re.search(r'\s+2002\s+common.*\s+' + str(ont_id) + '\s+', isp):
+                        index = re.findall(r'\s*(\d+)\s+2002', isp)[0]
+                        tlt.undo_service_port(index)
+                        tlt.go_into_interface_mode(fsp)
+                        release_result = tlt.release_ont(p, ont_id)
+                        if release_result["status"]:
+                            return _del_db()
                         else:
-                            logger.warning('no cevlan selected to delete for ont {}'.format(mac))
-                    db.session.commit()
-
-                    logger.info('Cevlan related is deleted in database. The status of the ont is updated to 998.')
-                    return True
-                except Exception as e:
-                    logger.error('write db error {}'.format(e))
-                    return False
+                            return False
         else:
             logger.warning('ont {} is not registered on device {} {}/{}/{} {}'.format(mac, device_id, f, s, p, ont_id))
             flash('未找到注册光猫，不可删除')
