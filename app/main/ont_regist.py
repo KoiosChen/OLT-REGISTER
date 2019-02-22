@@ -3,7 +3,7 @@ from flask_login import login_required
 from ..models import Device, ONTDetail, Log, MachineRoom, Permission, User, OntRegister, PeVlan, Area, Role, \
     ontinfo_translate, Community, defaultLoginName
 from ..decorators import admin_required, permission_required
-from ..my_func import FindLOID, add_log, FindByMac, ont_register_func, release_ont_func, manual_sync_func, \
+from ..my_func import FindLOID, add_log, ont_register_func, release_ont_func, manual_sync_func, \
     get_machine_room_by_area, ont_autofind_func, olt_temp_func, discover_alter_interface_func
 from .. import db, logger
 from .forms import *

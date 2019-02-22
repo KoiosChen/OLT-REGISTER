@@ -1,6 +1,7 @@
 from flask_wtf import Form
 from flask import session
-from wtforms.validators import DataRequired, Email, Length, Regexp, EqualTo, IPAddress, Optional, NumberRange, ValidationError
+from wtforms.validators import DataRequired, Email, Length, Regexp, EqualTo, IPAddress, Optional, NumberRange, \
+    ValidationError
 from wtforms import StringField, SubmitField, PasswordField, SelectField, SelectMultipleField, DateTimeField, \
     RadioField, IntegerField, BooleanField, TextAreaField
 from ..models import Role, Area, User
@@ -85,8 +86,8 @@ class OntRegisterFormByManager(Form):
                                                    Regexp('^[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}',
                                                           0, '无效的MAC地址,请注意末尾空格')])
     customer_number = StringField('请输入用户编号', validators=[DataRequired(),
-                                              Regexp('^[A-Za-z]*[A-Za-z0-9]*$', 0,
-                                                     '用户编号只能包括字母, 数字')])
+                                                         Regexp('^[A-Za-z]*[A-Za-z0-9]*$', 0,
+                                                                '用户编号只能包括字母, 数字')])
     customer_distinct = StringField('请输入用户社区名(地址)', validators=[DataRequired()])
     ont_vendor = SelectField('请选择光猫生产商',
                              validators=[DataRequired()],
@@ -167,8 +168,8 @@ class OntRegisterInspector(Form):
                                                    Regexp('[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}',
                                                           0, '无效的MAC地址')])
     customer_number = StringField('请输入用户编号', validators=[
-                                                         Regexp('^[A-Za-z]*[A-Za-z0-9]*$', 0,
-                                                                '用户编号只能包括字母, 数字')])
+        Regexp('^[A-Za-z]*[A-Za-z0-9]*$', 0,
+               '用户编号只能包括字母, 数字')])
     customer_addr = StringField('请输入用户地址(建议模糊查询)', validators=[Optional()])
     ont_model_choice = SelectMultipleField(label='请选择光猫种类',
                                            choices=[('1', '单口'), ('2', '四口'), ('3', '标准模板')])
@@ -209,8 +210,8 @@ class MaintainPevlanForm(Form):
 class ManualSync(Form):
     device_name = SelectMultipleField(label='请选择OLT设备:')
     sync_action = RadioField(label='请选择同步内容:', choices=[('1', '同步CEVLAN'), ('2', '同步SERVICE PORT'),
-                                                         ('3', '同步ONU基础信息'), ('4', '同步ONU光衰及下线原因'),
-                                                         ('5', 'MAC LEARNED BY ONU')])
+                                                        ('3', '同步ONU基础信息'), ('4', '同步ONU光衰及下线原因'),
+                                                        ('5', 'MAC LEARNED BY ONU')])
     submit = SubmitField('开始同步')
 
     def __init__(self):
@@ -287,10 +288,9 @@ class PcapOrder(Form):
     submit = SubmitField('提交')
 
 
-
-
-
-
-
-
-
+class AutoRegister(Form):
+    scheduler_choice = [('5', '5分钟'), ('30', '30分钟'), ('60', '1小时'), ('720', '12小时'), ('1440', '24小时')]
+    machine_room = SelectField('请选择上联机房:', validators=[DataRequired()], id='select_machine_room')
+    olt_name = SelectField('请选择OLT:', validators=[DataRequired()], id='select_olt')
+    port = SelectMultipleField('请选择端口（可多选）:', validators=[DataRequired()], id='select_port')
+    scheduler = SelectField('请选择执行时长:', validators=[DataRequired()], id='select_scheduler', choices=scheduler_choice)

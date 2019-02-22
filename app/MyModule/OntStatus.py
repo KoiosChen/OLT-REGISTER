@@ -80,22 +80,27 @@ def ontLocation(device_id='', machine_room='', mac=''):
     """
 
     :param device_id: 某台设备ID
-    :param machine_room:
+    :param machine_room: 如果此
     :param mac:
     :return:
     """
     device_list = get_device_info(machine_room) if machine_room else Device.query.filter_by(id=device_id).all()
     if device_list:
         for device in device_list:
-            logger.debug('telnet device {} {}'.format(device.device_name, device.ip))
+            logger.debug('locate the ont {} on device {} {}'.format(mac, device.device_name, device.ip))
             try:
                 fsp, ontid, _, _ = FindByMac(mac, device.ip, device.login_name, device.login_password, level='fsp')
                 if fsp and ontid:
+                    logger.debug(
+                        'The location of ont {} on device {} is {} {}.'.format(mac, device.device_name, fsp, ontid))
                     return {device_id: (fsp, ontid)}
                 else:
+                    logger.warning("Cannot locate the ont")
                     return False
             except Exception as e:
                 logger.error(e)
+                logger.warning("Cannot locate the ont")
                 return False
-
-    return False
+    else:
+        logger.error('Cannot find the device beyond this machine room(or device id)')
+        return False

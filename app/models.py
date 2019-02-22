@@ -400,4 +400,6 @@ ontinfo_translate = {'Run state': '运行状态',
 defaultLoginName = 'chenjzh'
 
 
-PERMIT_IP = ['all']
+PERMIT_IP = ['all', '127.0.0.1']
+
+UNICOM_FORCE = True

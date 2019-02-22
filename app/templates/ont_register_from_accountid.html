@@ -81,48 +81,49 @@
             }
             else {
                 {% if js %}
-                var account_id = "{{ js.accountId }}";
-                var currentState = "{{ js.currentState }}";
-                var communityName = "{{ js.communityName }}";
-                var aptNo = "{{ js.aptNo }}";
+                    var account_id = "{{ js.accountId }}";
+                    var currentState = "{{ js.currentState }}";
+                    var communityName = "{{ js.communityName }}";
+                    var aptNo = "{{ js.aptNo }}";
                 {% else %}
-                var account_id =$("#customer_number").val();
-                var currentState = $("#customer_number").val();
-                var communityName = $("#customer_distinct").val();
-                var aptNo = "";
+                    var account_id = $("#customer_number").val();
+                    var currentState = $("#customer_number").val();
+                    var communityName = $("#customer_distinct").val();
+                    var aptNo = "";
                 {% endif %}
 
 
 
                 $('#register_form').showLoading();
+
+                let params = {
+                    "account_id": account_id,
+                    "currentState": currentState,
+                    "mac": $('#mac').val(),
+                    "machine_room_id": $("#machine_room_name").val(),
+                    "ont_model_choice": $("#ont_model_choice").val(),
+                    "communityName": communityName,
+                    "aptNo": aptNo,
+                    "service_type": $("#service_type").val()
+                };
+
                 $.ajax({
                     type: "post",
                     url: "regist_precheck",
-                    data: {
-                        "account_id": account_id,
-                        "currentState": currentState,
-                        "mac": $('#mac').val(),
-                        "machine_room_id": $("#machine_room_name").val(),
-                        "ont_model_choice": $("#ont_model_choice").val(),
-                        "communityName": communityName,
-                        "aptNo": aptNo,
-                        "service_type": $("#service_type").val()
-                    },
-                    dataType: 'html',
-                    contentType: "application/x-www-form-urlencoded; charset=utf-8;",
+                    data: JSON.stringify(params, null, '\t'),
+                    contentType: "application/json; charset=utf-8",
 
                     success: function (msg) {
-                        var msg_json = JSON.parse(msg);
-                        if (msg_json['status'].match(/ok/)) {
-                            toastr.success(msg_json['content']);
+                        if (msg.status === 'ok') {
+                            toastr.success(msg.content);
                             window.location.href = '/'
                         }
-                        else if (msg_json['status'].match(/fail/)) {
-                            toastr.warning("光猫未找到 " + msg_json['content']);
+                        else if (msg.status === 'fail') {
+                            toastr.warning("光猫未找到 " + msg.content);
                             $('#register_form').hideLoading();
                         }
                         else {
-                            toastr.warning(msg_json['content']);
+                            toastr.warning(msg.content);
                             $('#register_form').hideLoading();
                         }
                     },

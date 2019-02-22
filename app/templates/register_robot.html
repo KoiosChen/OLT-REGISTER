@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block title %}Founder Shanghai SNOC{% endblock %}
+
+
+{% block page_content %}
+    <div class="page-header">
+        <h3>说明:</h3>
+        <li>此功能用于自动注册ONU</li>
+        <li>请选择用户社区对应的机房 -> OLT -> 端口</li>
+        <li>请选择计划执行时长</li>
+        <li>请填写用户ONU的MAC地址,格式为XXXX-XXXX-XXXX,例如0007-2680-3C83</li>
+        <br><br>
+    </div>
+
+    <div id="autoregister_form">
+        <p>{{ wtf.form_field(form.machine_room) }}</p>
+        <p>{{ wtf.form_field(form.olt_name) }}</p>
+        <p>{{ wtf.form_field(form.port) }}</p>
+        <p>{{ wtf.form_field(form.scheduler) }}</p>
+
+        <button type="button" class="btn btn-primary" data-dismiss="modal" id="submit">提交注册</button>
+    </div>
+
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    <link href="{{ url_for('static', filename='showLoading.css') }}" rel="stylesheet" media="screen"/>
+    <script type="text/javascript" src="{{ url_for('static', filename='jquery.showLoading.min.js') }}"></script>
+
+    <script type="text/javascript">
+
+        var dropdown = {
+            machine_room: $('#select_machine_room'),
+            olt_name: $('#select_olt'),
+            port_name: $('#select_port'),
+            scheduler: $('#select_scheduler')
+        };
+
+
+        // call to update on load
+        updateOLT();
+
+        // function to call XHR and update county dropdown
+        function updateOLT() {
+            var send = {
+                machine_room: dropdown.machine_room.val()
+            };
+            dropdown.olt_name.attr('disabled', 'disabled');
+            dropdown.olt_name.empty();
+            $.getJSON("{{ url_for('main._get_olt') }}", send, function (data) {
+                data.forEach(function (item) {
+                    dropdown.olt_name.append(
+                        $('<option>', {
+                            value: item[0],
+                            text: item[1]
+                        })
+                    );
+                });
+                dropdown.olt_name.removeAttr('disabled');
+                updatePort();
+
+            });
+        }
+
+        // event listener to state dropdown change
+        dropdown.machine_room.on('change', function () {
+            updateOLT();
+        });
+
+
+        // function to call XHR and update county dropdown
+        function updatePort() {
+            var send = {
+                olt_name: dropdown.olt_name.val()
+            };
+            dropdown.port_name.attr('disabled', 'disabled');
+            dropdown.port_name.empty();
+            $.getJSON("{{ url_for('main._get_ports') }}", send, function (data) {
+                data.forEach(function (item) {
+                    dropdown.port_name.append(
+                        $('<option>', {
+                            value: item[0],
+                            text: item[1]
+                        })
+                    );
+                });
+                dropdown.port_name.removeAttr('disabled');
+            });
+        }
+
+        // event listener to state dropdown change
+        dropdown.olt_name.on('change', function () {
+            updatePort();
+        });
+
+        $('#submit').click(function () {
+            var params = {
+                'olt_name': dropdown.olt_name.val(),
+                'ports_name': dropdown.port_name.val(),
+                'scheduler': dropdown.scheduler.val()
+            };
+            $.ajax({
+                type: "POST",          //提交方式          
+                url: "add_scheduler",  //提交的页面/方法名          
+                data: JSON.stringify(params, null, '\t'),         //参数（如果没有参数：null）          
+                contentType: "application/json; charset=utf-8",
+                success: function (msg) {
+                    if (msg.status === 'ok') {
+                        toastr.info(msg.result);
+                    }
+                    else {
+                        toastr.error(msg.result);
+                    }
+
+                },
+                error: function (xhr, msg, e) {
+                    toastr.error("删除失败");
+                }
+            });
+        });
+
+        // toastr options
+        toastr.options = {
+            "closeButton": true, //是否显示关闭按钮
+            "debug": false, //是否使用debug模式
+            "progressBar": false,
+            "positionClass": "toast-top-full-width",//弹出窗的位置
+            "showDuration": "300",//显示的动画时间
+            "hideDuration": "1000",//消失的动画时间
+            "timeOut": "20000", //展现时间
+            "extendedTimeOut": "1000",//加长展示时间
+            "showEasing": "swing",//显示时的动画缓冲方式
+            "hideEasing": "linear",//消失时的动画缓冲方式
+            "showMethod": "fadeIn",//显示时的动画方式
+            "hideMethod": "fadeOut" //消失时的动画方式
+        };
+
+    </script>
+
+{% endblock %}

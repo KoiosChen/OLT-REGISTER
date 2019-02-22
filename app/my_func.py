@@ -492,6 +492,133 @@ def test():
         c_l = 'l'
 
 
+def ont_add_native_vlan(tlt, **kwargs):
+    eth = {'1': '1', '2': '4', '3': '1'}
+    ont_model = kwargs.get('ont_model', '1')
+    device_id = kwargs.get('device_id')
+    f = kwargs.get('f')
+    s = kwargs.get('s')
+    p = kwargs.get('p')
+    service_type = kwargs.get('service_type')
+    ont_id = kwargs.get('ont_id')
+    mac = kwargs.get('mac')
+    username = kwargs.get('username')
+    user_addr = kwargs.get('project') + '/' + kwargs.get('number')
+    reporter_group = kwargs.get('reporter_group', 'r2d2')
+    reporter_name = kwargs.get('reporter_name', 'r2d2')
+    register_name = kwargs.get('register_name', 'r2d2')
+    remarks = kwargs.get('remarks', 'r2d2')
+    eth_port = eth[ont_model]
+    cevlan = get_cevlan(device_id, f, s, p, service_type)
+
+    if cevlan:
+        # write log
+        logger.info('Get the cevlan {}'.format(cevlan))
+
+        # old method just support 1 port onu, not used yet
+        # regist_status = 1 if tlt.ont_port_native_vlan_add(p, ont_id, eth_port, cevlan) else 4
+
+        add_cevlan_flag = 0
+        tlt.go_into_interface_mode(f + '/' + s + '/' + p)
+        for e_port in range(1, int(eth_port) + 1):
+            if tlt.ont_port_native_vlan_add(p, ont_id, str(e_port), cevlan):
+                logger.debug('add ont on {} {} eth {} cevlan {}'.format(p, ont_id, str(e_port), cevlan))
+                add_cevlan_flag += 1
+
+        logger.debug('add_cevlan_flag: {}'.format(add_cevlan_flag))
+
+        regist_status = 1 if add_cevlan_flag == int(eth_port) else 4
+
+        # insert register log into database
+        try:
+            old_record = OntRegister.query.filter_by(mac=mac).all()
+            if old_record:
+                for r in old_record:
+                    r.status = 998
+                    r.update_time = time.localtime()
+                    db.session.add(r)
+                db.session.commit()
+
+            ont_regist_data = OntRegister(f=f, s=s, p=p, mac=mac, cevlan=cevlan, ont_id=ont_id,
+                                          device_id=device_id,
+                                          ont_model=ont_model, regist_status=regist_status,
+                                          username=username,
+                                          user_addr=user_addr, reporter_name=reporter_name,
+                                          reporter_group=reporter_group, regist_operator=register_name,
+                                          remarks=remarks, status=regist_status,
+                                          create_time=time.localtime(), update_time=time.localtime())
+            ins_cevlan = CeVlan(f=f, s=s, p=p, device_id=device_id, cevlan=cevlan, ont_id=ont_id)
+            db.session.add(ins_cevlan)
+            db.session.add(ont_regist_data)
+            db.session.commit()
+            logger.info('Insert the ont register info into db successful')
+            return {"status": "true", "content": ont_regist_data.id}
+        except Exception as e:
+            logger.error('Insert the ont register info error {}'.format(e))
+            return {'status': 'false', 'content': str(e)}
+    else:
+        # write log
+        logger.warning('No cevlan found')
+        return {'status': 'false', 'content': 'Cannot find CEVLAN'}
+
+
+def register_to_unicom():
+    service_type = 4
+
+    def _find_ont_location(mac):
+        return ONTDetail.query.filter(ONTDetail.mac.__eq__(mac),
+                                      or_(ONTDetail.ont_status.__eq__(1), ONTDetail.ont_status.__eq__(2),
+                                          ONTDetail.run_state.__eq__('online'))).first()
+
+    def _write_register_log(type, mac, content):
+        with open('./register_to_unicom_result.log', 'a') as logfile:
+            logfile.write("{} {} {}\n".format(type, mac, content))
+
+    def _collect_register_info():
+        import csv
+        f = open('./source_onu_mac.csv')
+        f_csv = csv.DictReader(f)
+        dst_ont_list = defaultdict(list)
+        for row in f_csv:
+            ont_location = _find_ont_location(row['mac'])
+            if ont_location:
+                row['device_id'] = ont_location.device_id
+                row['f'] = ont_location.f
+                row['s'] = ont_location.s
+                row['p'] = ont_location.p
+                row['ont_id'] = ont_location.ont_id
+                row['service_type'] = 4
+                dst_ont_list[ont_location.device_id].append(row)
+                _write_register_log('Locate', row['mac'], 'success')
+            else:
+                _write_register_log('Locate', row['mac'], 'fail')
+        f.close()
+        return dst_ont_list
+
+    def _do_register(device_id, info):
+        # 允许不传入ip， login_name, login_password, 通过device_id来查找数据库完成
+        device_info = Device.query.filter_by(id=device_id).first()
+        ip, login_name, login_password = device_info.ip, device_info.login_name, device_info.login_password
+
+        # telnet olt
+        try:
+            tlt = Telnet5680T.TelnetDevice('', ip, login_name, login_password)
+            for r in info:
+                result = ont_add_native_vlan(tlt, **r)
+                _write_register_log('Move', r['mac'], result['status'])
+        except Exception as e:
+            logger.error(str(e))
+
+    register_info = _collect_register_info()
+    i = 0
+    t = []
+    for device_id, info in register_info.items():
+        t.append(i)
+        t[i] = threading.Thread(target=_do_register, args=(device_id, info,))
+        t[i].start()
+        i += 1
+
+
 def start_func():
     def select_func():
         func = (
@@ -552,58 +679,6 @@ def FindLOID(mac, ip, username, password):
     else:
         tlt.telnet_close()
         return False
-
-
-def FindByMac(mac, ip, username, password, level='base'):
-    logger.info('User {} is using FindByMac mac:{}, ip:{}'.format(session['LOGINNAME'], mac, ip))
-    try:
-        tlt = Telnet5680T.TelnetDevice(mac, ip, username, password)
-        fsp, ont_id, result = tlt.find_by_mac(mac)
-    except Exception as e:
-        logger.error(e)
-        return False, False, False, False
-
-    if level == 'verbose':
-        if fsp:
-            tlt.go_into_interface_mode(fsp)
-            p = fsp.split('/')[2]
-            optical = tlt.check_optical_info(p, id=ont_id)
-            register_info = tlt.check_register_info(p, id=ont_id)
-            ont_version = tlt.display_ont_version(port=p, ont_id=ont_id)
-            tlt.telnet_close()
-            return optical, result, register_info, ont_version
-        else:
-            tlt.telnet_close()
-            return False, False, False, False
-    elif level == 'callcenter':
-        if fsp:
-            tlt.go_into_interface_mode(fsp)
-            p = fsp.split('/')[2]
-            optical = tlt.check_optical_info(p, id=ont_id)
-            register_info = tlt.check_register_info(p, id=ont_id)
-            tlt.telnet_close()
-            return optical, register_info, '_', '_'
-        else:
-            tlt.telnet_close()
-            return False, False, False, False
-    elif level == 'fsp':
-        if fsp:
-            return fsp, ont_id
-        else:
-            tlt.telnet_close()
-            return False
-    elif level == 'optical':
-        if fsp:
-            tlt.go_into_interface_mode(fsp)
-            p = fsp.split('/')[2]
-            optical = tlt.check_optical_info(p, id=ont_id)
-            tlt.telnet_close()
-            return optical, '_', '_', '_'
-        else:
-            tlt.telnet_close()
-            return False, False, False, False
-    else:
-        return fsp, ont_id, result, '_'
 
 
 def add_log(data):
@@ -679,8 +754,6 @@ def get_cevlan(device_id, f, s, p, service_type):
             else:
                 list2.append(2)
         try:
-            logger.debug("source list is {}".format(str(source)))
-            logger.debug("list2 is {}".format(str(list2)))
             guess_cevlan = (min(set(source) - set(list2)))
         except Exception as e:
             logger.error(str(e))
@@ -713,19 +786,6 @@ def ont_register_func(**kwargs):
                         'status': 1,
                         'service_type': service_type
                         }
-        flash_message = {'1': '光猫注册成功, 请使用\'ONU查询\'功能确认ONU状态',
-                         '2': '未发现光猫,请检查线路或联系网管',
-                         '3': '发现光猫, 但添加ONT失败,请联系值班网管',
-                         '4': '发现光猫并注册, 但是绑定native-vlan失败, 请联系值班网管',
-                         '5': '光猫链接超时'
-                         '6': '此光猫已经被注册在其它PON口, 请联系值班网管'
-                         '7': '此PON口已达到注册上线,请联系值班网管调整'
-                         '104': '发现光猫并注册, 但是绑定native-vlan失败, 系统回滚成功, 请联系值班网管处理',
-                         '107': '发现光猫并注册, 但设备native-vlan耗尽,系统回滚成功, 请联系值班网管处理',
-                         '204': '发现光猫并注册, 但是绑定native-vlan失败, 系统回滚失败, 请联系值班网管处理',
-                         '207': '发现光猫并注册, 但设备native-vlan耗尽,系统回滚失败, 请联系值班网管处理',
-                         '998': 'onu被解绑'
-                         '999': '未找到对应机房'}
     :return: 1 -- success; 2 -- ont not found; 3 -- ont found, but register failed
     """
 
@@ -823,8 +883,7 @@ def ont_register_func(**kwargs):
                                 return {"status": "fail", "content": str(e)} if api_version else 6
 
                     if re.search(r'upper limit', line):
-                        logger.warning(
-                            'ONT {} add fail: The number of ONT in port already reach upper limit'.format(mac))
+                        logger.warn('ONT {} add fail: The number of ONT in port already reach upper limit'.format(mac))
                         tlt.telnet_close()
                         return {"status": "fail", "content": flash_message['7']} if api_version else 7
 
@@ -837,7 +896,7 @@ def ont_register_func(**kwargs):
 
             if success and ont_id:
                 # write log
-                logger.info('ONT regist successfully {}. MAC {} fsp {} ontid {}'.format(success, mac, fsp, ont_id))
+                logger.info('ONT register successfully {}. MAC {} fsp {} ontid {}'.format(success, mac, fsp, ont_id))
 
                 eth_port = eth[ont_model]
                 cevlan = get_cevlan(device_id, f, s, p, service_type)
@@ -915,24 +974,27 @@ def release_ont_func(device_id, f, s, p, ont_id, mac, to_status=None):
             ont_register_record = \
                 OntRegister.query.filter_by(device_id=device_id, f=f, s=s, p=p, ont_id=ont_id, mac=mac).all()
             delete_cevlan_list = []
-            for record in ont_register_record:
-                logger.debug(
-                    'The status of OntRegister record id {} is updated to {}'.format(record, str(to_status)))
-                record.status = to_status
-                db.session.add(record)
-                delete_cevlan_list.append(record.cevlan)
-            for cevlan in delete_cevlan_list:
-                logger.debug('{} {}'.format(cevlan, type(cevlan)))
-                cevlan_record = CeVlan.query.filter_by(device_id=device_id, f=f, s=s, p=p, ont_id=ont_id,
-                                                       cevlan=cevlan).all()
-                if len(cevlan_record) > 0:
-                    logger.debug(cevlan_record)
-                    for cr in cevlan_record:
-                        logger.debug('cevlan to be deleted {}'.format(cr))
-                        db.session.delete(cr)
-                else:
-                    logger.warning('no cevlan selected to delete for ont {}'.format(mac))
-            db.session.commit()
+            if ont_register_record:
+                for record in ont_register_record:
+                    logger.debug(
+                        'The status of OntRegister record id {} is updated to {}'.format(record, str(to_status)))
+                    record.status = to_status
+                    db.session.add(record)
+                    delete_cevlan_list.append(record.cevlan)
+                for cevlan in delete_cevlan_list:
+                    logger.debug('{} {}'.format(cevlan, type(cevlan)))
+                    cevlan_record = CeVlan.query.filter_by(device_id=device_id, f=f, s=s, p=p, ont_id=ont_id,
+                                                           cevlan=cevlan).all()
+                    if len(cevlan_record) > 0:
+                        logger.debug(cevlan_record)
+                        for cr in cevlan_record:
+                            logger.debug('cevlan to be deleted {}'.format(cr))
+                            db.session.delete(cr)
+                    else:
+                        logger.warning('no cevlan selected to delete for ont {}'.format(mac))
+                db.session.commit()
+            else:
+                logger.warning('no cevlan selected to delete for ont {}'.format(mac))
 
             logger.info('Cevlan related is deleted in database. The status of the ont is updated to 998.')
             return True
