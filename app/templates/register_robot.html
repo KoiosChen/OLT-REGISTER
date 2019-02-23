@@ -18,7 +18,7 @@
         <p>{{ wtf.form_field(form.machine_room) }}</p>
         <p>{{ wtf.form_field(form.olt_name) }}</p>
         <p>{{ wtf.form_field(form.port) }}</p>
-        <p>{{ wtf.form_field(form.scheduler) }}</p>
+        <p>{{ wtf.form_field(form.service_type) }}</p>
 
         <button type="button" class="btn btn-primary" data-dismiss="modal" id="submit">提交注册</button>
     </div>
@@ -36,7 +36,7 @@
             machine_room: $('#select_machine_room'),
             olt_name: $('#select_olt'),
             port_name: $('#select_port'),
-            scheduler: $('#select_scheduler')
+            service_type: $('#select_service_type')
         };
 
 
@@ -100,11 +100,11 @@
             var params = {
                 'olt_name': dropdown.olt_name.val(),
                 'ports_name': dropdown.port_name.val(),
-                'scheduler': dropdown.scheduler.val()
+                'service_type': dropdown.service_type.val()
             };
             $.ajax({
                 type: "POST",          //提交方式          
-                url: "add_scheduler",  //提交的页面/方法名          
+                url: "change_service",  //提交的页面/方法名          
                 data: JSON.stringify(params, null, '\t'),         //参数（如果没有参数：null）          
                 contentType: "application/json; charset=utf-8",
                 success: function (msg) {

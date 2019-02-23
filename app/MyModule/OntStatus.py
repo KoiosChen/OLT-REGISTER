@@ -14,6 +14,8 @@ def ont_status(mac, machine_room, level='verbose', device=None):
         device_list = GetDeviceInfo.get_device_info(MachineRoom.query.filter_by(name=machine_room).first().id)
     elif device is not None:
         device_list = Device.query.filter_by(id=device).all()
+    else:
+        return {'status': 'false', 'content': "device parameter error"}
 
     if device_list:
         # 解决一个机房下有多个OLT的问题
@@ -93,14 +95,14 @@ def ontLocation(device_id='', machine_room='', mac=''):
                 if fsp and ontid:
                     logger.debug(
                         'The location of ont {} on device {} is {} {}.'.format(mac, device.device_name, fsp, ontid))
-                    return {device_id: (fsp, ontid)}
+                    return {device.id: (fsp, ontid)}
                 else:
-                    logger.warning("Cannot locate the ont")
-                    return False
+                    logger.warning("Cannot locate the ont {}".format(device_id))
             except Exception as e:
                 logger.error(e)
                 logger.warning("Cannot locate the ont")
                 return False
+        return False
     else:
         logger.error('Cannot find the device beyond this machine room(or device id)')
         return False

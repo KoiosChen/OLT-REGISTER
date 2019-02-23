@@ -2,7 +2,7 @@ from flask import redirect, session, url_for, render_template, request, jsonify
 from flask_login import login_required
 from ..models import ServicePort, Permission, Device
 from ..decorators import admin_required, permission_required
-from ..my_func import get_machine_room_by_area
+from ..my_func import get_machine_room_by_area, change_service
 from .forms import AutoRegister
 from . import main
 import uuid
@@ -73,3 +73,17 @@ def _add_scheduler():
                                seconds=interval)
     logger.debug(result)
     return jsonify({"result": str(result), "status": "ok"})
+
+
+@main.route('/change_service', methods=['POST'])
+@login_required
+@permission_required(Permission.ADMINISTER)
+def _change_service():
+    data = request.json
+    olt_name = data.get('olt_name')
+    ports_name = data.get('ports_name')
+    service_type = data.get('service_type')
+    logger.debug("{} {} {}".format(olt_name, ports_name, service_type))
+    result = change_service(olt_name, ports_name, service_type)
+    return jsonify({"result": result['content'], "status": "ok"}) if result['status'] else jsonify(
+        {"result": result['content'], "status": "false"})

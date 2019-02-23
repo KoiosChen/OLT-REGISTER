@@ -65,18 +65,21 @@ def regist_precheck():
     # 查找该机房下是否有对应的光猫，如果未找到则直接返回用户信息，不进行下面代码
     autofind_result = ont_autofind_func(machine_room_id, mac)
     if not autofind_result:
-            try:
-                find_exist_ont = ontLocation(machine_room=machine_room_id, mac=mac)
-                if find_exist_ont:
-                    for device_id, ont_info in find_exist_ont.items():
-                        f, s, p = ont_info[0].split('/')
-                        ont_id = ont_info[1]
-                        release_ont_func(device_id=device_id, f=f, s=s, p=p, ont_id=ont_id, mac=mac, to_status=990)
-                        autofind_result = '/'.join([f, s, p])
-                else:
-                    return jsonify({"status": "fail", "content": "在所选机房未找到此光猫（{}）".format(mac)})
-            except Exception as e:
+        try:
+            find_exist_ont = ontLocation(machine_room=machine_room_id, mac=mac)
+            logger.debug(str(find_exist_ont))
+            if find_exist_ont:
+                for device_id, ont_info in find_exist_ont.items():
+                    change_result = change_service(olt_name=device_id, ports_name=None, service_type=service_type,
+                                                   mac={'mac': mac, 'info': ont_info})
+                    if change_result['status'] == 'true':
+                        return jsonify({"status": "ok", "content": "变更服务成功"})
+                    else:
+                        return jsonify({"status": "fail", "content": "变更服务失败"})
+            else:
                 return jsonify({"status": "fail", "content": "在所选机房未找到此光猫（{}）".format(mac)})
+        except:
+            return jsonify({"status": "fail", "content": "在所选机房未找到此光猫（{}）".format(mac)})
 
     # 查找历史的注册记录，可能有多条
     ont_regist_check = OntRegister.query.filter_by(username=account_id, status=1).all()

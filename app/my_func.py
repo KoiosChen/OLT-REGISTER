@@ -503,13 +503,17 @@ def ont_add_native_vlan(tlt, **kwargs):
     ont_id = kwargs.get('ont_id')
     mac = kwargs.get('mac')
     username = kwargs.get('username')
-    user_addr = kwargs.get('project') + '/' + kwargs.get('number')
+    user_addr = kwargs.get('project') + '/' + kwargs.get('number', '')
     reporter_group = kwargs.get('reporter_group', 'r2d2')
     reporter_name = kwargs.get('reporter_name', 'r2d2')
     register_name = kwargs.get('register_name', 'r2d2')
     remarks = kwargs.get('remarks', 'r2d2')
     eth_port = eth[ont_model]
     cevlan = get_cevlan(device_id, f, s, p, service_type)
+
+    # {'remarks': 'unicom', 'service_type': '4', 'user_addr': 'unicom', 'device_id': 26, 'reporter_name': 'r2d2',
+    #  'ont_id': '9', 'username': 'unicom', 'ont_model': '1', 'register_name': 'r2d2', 's': '4', 'mac': '001F-A4D6-B069',
+    #  'p': '12', 'f': '0', 'reporter_group': 'r2d2'}
 
     if cevlan:
         # write log
@@ -1454,3 +1458,81 @@ def ont_modify_func(device_id, f, s, p, ontid, mac, force=False):
             return {"status": "fail", "content": "更换光猫操作异常，请联系值班网管"}
     else:
         return {"status": "fail", "content": "更换光猫操作异常, 未找到设备信息, 请联系值班网管"}
+
+
+def change_service(olt_name=None, ports_name=None, service_type='4', mac=None):
+    """
+
+    :param olt_name:
+    :param ports_name:
+    :param service_type:
+    :param mac:
+    :return:
+    """
+    logger.debug("start to change service")
+    logger.debug(str(olt_name) + ' ' + str(mac) + ' ' + str(ports_name))
+    service_type_dict = {'1': 'founderbn', '4': 'unicom'}
+    # 允许不传入ip， login_name, login_password, 通过device_id来查找数据库完成
+
+    mac_reg = re.compile(r'[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}')
+    device_info = Device.query.filter_by(id=olt_name).first()
+    ip, login_name, login_password = device_info.ip, device_info.login_name, device_info.login_password
+
+    dst_ont_list = []
+
+    row_raw = {'device_id': olt_name,
+               'ont_model': '1',
+               'number': '',
+               'username': service_type_dict[service_type],
+               'user_addr': service_type_dict[service_type],
+               'reporter_group': 'r2d2',
+               'reporter_name': 'r2d2',
+               'register_name': 'r2d2',
+               'remarks': service_type_dict[service_type],
+               'service_type': service_type}
+
+    logger.debug(str(row_raw))
+
+    # telnet olt
+    try:
+        tlt = Telnet5680T.TelnetDevice('', ip, login_name, login_password)
+        logger.debug(str(mac) + ' ' + str(ports_name))
+        if mac is None and ports_name is not None:
+            for port in ports_name:
+                f, s, p = port.split('/')
+                tlt.go_into_interface_mode(port)
+                onts_info_list = tlt.display_ont_info(p)
+                for line in onts_info_list:
+                    if re.search(mac_reg, line):
+                        ont_id, mac = re.findall('(\d+)\s+([0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4})', line)[0]
+                        row_tmp = row_raw.copy()
+                        row_tmp['f'] = f
+                        row_tmp['s'] = s
+                        row_tmp['p'] = p
+                        row_tmp['mac'] = mac
+                        row_tmp['ont_id'] = ont_id
+                        dst_ont_list.append(row_tmp)
+
+                for r in dst_ont_list:
+                    result = ont_add_native_vlan(tlt, **r)
+                    logger.debug(result)
+                tlt.quit()
+        elif mac is not None and ports_name is None:
+            logger.debug('change for a mac')
+            mac = mac['mac']
+            f, s, p = mac['info'][0].split('/')
+            ont_id = mac['info'][1]
+            row_tmp = row_raw.copy()
+            row_tmp['f'] = f
+            row_tmp['s'] = s
+            row_tmp['p'] = p
+            row_tmp['mac'] = mac
+            row_tmp['ont_id'] = ont_id
+            result = ont_add_native_vlan(tlt, **row_tmp)
+            logger.debug(result)
+
+        tlt.telnet_close()
+        return {'status': True, 'content': '变更服务成功'}
+    except Exception as e:
+        logger.error(str(e))
+        return {'status': False, 'content': '变更服务失败'}

@@ -293,4 +293,8 @@ class AutoRegister(Form):
     machine_room = SelectField('请选择上联机房:', validators=[DataRequired()], id='select_machine_room')
     olt_name = SelectField('请选择OLT:', validators=[DataRequired()], id='select_olt')
     port = SelectMultipleField('请选择端口（可多选）:', validators=[DataRequired()], id='select_port')
-    scheduler = SelectField('请选择执行时长:', validators=[DataRequired()], id='select_scheduler', choices=scheduler_choice)
+    # scheduler = SelectField('请选择执行时长:', validators=[DataRequired()], id='select_scheduler', choices=scheduler_choice)
+    service_type = SelectField(label='请选择服务类型',
+                               choices=[('1', '社区'), ('4', '联通')],
+                               validators=[DataRequired()],
+                               default='1', id='select_service_type')
