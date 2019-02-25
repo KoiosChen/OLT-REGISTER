@@ -20,7 +20,7 @@ def do_autoregister(olt_id, ports):
 
 @main.route('/register_robot', methods=['GET'])
 @login_required
-@permission_required(Permission.ADMINISTER)
+@permission_required(Permission.NETWORK_MANAGER)
 def register_robot():
     form = AutoRegister()
     form.machine_room.choices = get_machine_room_by_area(session.get('permit_machine_room'))
@@ -34,7 +34,7 @@ def register_robot():
 
 @main.route('/_get_olt/')
 @login_required
-@permission_required(Permission.ADMINISTER)
+@permission_required(Permission.NETWORK_MANAGER)
 def _get_olt():
     machine_room = request.args.get('machine_room', '01', type=str)
     olts = [(row.id, row.device_name) for row in Device.query.filter_by(machine_room_id=machine_room, status=1).all()]
@@ -43,7 +43,7 @@ def _get_olt():
 
 @main.route('/_get_ports/')
 @login_required
-@permission_required(Permission.ADMINISTER)
+@permission_required(Permission.NETWORK_MANAGER)
 def _get_ports():
     olt_name = request.args.get('olt_name', '01', type=str)
     ports = [('/'.join([row.f, row.s, row.p]), str(row.device_id) + ' ' + '/'.join([row.f, row.s, row.p])) for row in
@@ -53,7 +53,7 @@ def _get_ports():
 
 @main.route('/add_scheduler', methods=['POST'])
 @login_required
-@permission_required(Permission.ADMINISTER)
+@permission_required(Permission.NETWORK_MANAGER)
 def _add_scheduler():
     data = request.json
     olt_name = data.get('olt_name')
@@ -77,7 +77,7 @@ def _add_scheduler():
 
 @main.route('/change_service', methods=['POST'])
 @login_required
-@permission_required(Permission.ADMINISTER)
+@permission_required(Permission.NETWORK_MANAGER)
 def _change_service():
     data = request.json
     olt_name = data.get('olt_name')
@@ -85,5 +85,5 @@ def _change_service():
     service_type = data.get('service_type')
     logger.debug("{} {} {}".format(olt_name, ports_name, service_type))
     result = change_service(olt_name, ports_name, service_type)
-    return jsonify({"result": result['content'], "status": "ok"}) if result['status'] else jsonify(
+    return jsonify({"result": result['content'], "status": "ok"}) if result['status'] == 'true' else jsonify(
         {"result": result['content'], "status": "false"})

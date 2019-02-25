@@ -1478,8 +1478,6 @@ def change_service(olt_name=None, ports_name=None, service_type='4', mac=None):
     device_info = Device.query.filter_by(id=olt_name).first()
     ip, login_name, login_password = device_info.ip, device_info.login_name, device_info.login_password
 
-    dst_ont_list = []
-
     row_raw = {'device_id': olt_name,
                'ont_model': '1',
                'number': '',
@@ -1499,19 +1497,34 @@ def change_service(olt_name=None, ports_name=None, service_type='4', mac=None):
         logger.debug(str(mac) + ' ' + str(ports_name))
         if mac is None and ports_name is not None:
             for port in ports_name:
+                dst_ont_list = []
                 f, s, p = port.split('/')
                 tlt.go_into_interface_mode(port)
                 onts_info_list = tlt.display_ont_info(p)
+                epon_cur_conf = tlt.display_epon_current()
+                cevlan_dict = defaultdict(dict)
+                for line in epon_cur_conf:
+                    if re.search(r'native-vlan', line):
+                        logger.debug('Get the cevlan config {}'.format(line))
+                        port, ontid, cevlan = re.findall(r'ont\s+port\s+native-vlan\s+(\d)+\s+(\d+)\s+eth\s+\d+\s+vlan\s+(\d+)', line)[0]
+                        cevlan_dict[port][ontid] = cevlan
+                        logger.debug(port + ' ' + ontid + ' ' + cevlan)
+                        logger.debug(str(cevlan_dict))
+
                 for line in onts_info_list:
                     if re.search(mac_reg, line):
                         ont_id, mac = re.findall('(\d+)\s+([0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4})', line)[0]
-                        row_tmp = row_raw.copy()
-                        row_tmp['f'] = f
-                        row_tmp['s'] = s
-                        row_tmp['p'] = p
-                        row_tmp['mac'] = mac
-                        row_tmp['ont_id'] = ont_id
-                        dst_ont_list.append(row_tmp)
+                        logger.debug(p + ' ' + ont_id + ' ' + mac)
+                        now_vlan = cevlan_dict[p][ont_id]
+                        logger.debug("now the cevlan is {} type is ".format(now_vlan, type(now_vlan)))
+                        if int(now_vlan) < 2094:
+                            row_tmp = row_raw.copy()
+                            row_tmp['f'] = f
+                            row_tmp['s'] = s
+                            row_tmp['p'] = p
+                            row_tmp['mac'] = mac
+                            row_tmp['ont_id'] = ont_id
+                            dst_ont_list.append(row_tmp)
 
                 for r in dst_ont_list:
                     result = ont_add_native_vlan(tlt, **r)
@@ -1532,7 +1545,41 @@ def change_service(olt_name=None, ports_name=None, service_type='4', mac=None):
             logger.debug(result)
 
         tlt.telnet_close()
-        return {'status': True, 'content': '变更服务成功'}
+        return {'status': 'true', 'content': '变更服务成功'}
     except Exception as e:
         logger.error(str(e))
-        return {'status': False, 'content': '变更服务失败'}
+        return {'status': 'false', 'content': '变更服务失败'}
+
+
+def set_unicom_service_port(device_id):
+    device_info = Device.query.filter_by(id=device_id).first()
+
+    if not device_info.status:
+        logger.warning(
+            'Status %s. This device is not available in func \'set_unicom_service_port\'' % device_info.status)
+        exit()
+
+    tlnt = Telnet5680T.TelnetDevice(mac='', host=device_info.ip, username=device_info.login_name,
+                                    password=device_info.login_password)
+
+    # get the number of boards
+    board_id_list = [line.strip().split()[0] for line in tlnt.check_board_info()]
+    logger.debug(board_id_list)
+
+    unicom_pevlan = list(set([p.pevlan for p in PeVlan.query.filter_by(device_id=device_id, service_type='4').all()]))[
+        0]
+
+    service_port_exist = [sp.s + '/' + sp.p for sp in
+                          ServicePort.query.filter_by(device_id=device_id, pevlan=unicom_pevlan).all()]
+
+    logger.debug('find the unicom_pevlan is {}'.format(unicom_pevlan))
+    logger.debug('the port which has unicom pevlan is {}'.format(str(service_port_exist)))
+
+    for bid in board_id_list:
+        ont_list, port_list = tlnt.check_board_info(slot=bid)
+        logger.debug('the slot {} has ports {}'.format(bid, str(port_list)))
+        for port in port_list:
+            if bid + '/' + port not in service_port_exist:
+                logger.debug(port)
+                result = tlnt.add_service_port(bid + '/' + port, unicom_pevlan)
+                logger.debug('add service port result is {}'.format(result))

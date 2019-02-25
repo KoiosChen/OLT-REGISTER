@@ -7,10 +7,9 @@
 {% block page_content %}
     <div class="page-header">
         <h3>说明:</h3>
-        <li>此功能用于自动注册ONU</li>
+        <li>此功能用于自动变更PON口下所有ONU的服务类型</li>
         <li>请选择用户社区对应的机房 -> OLT -> 端口</li>
-        <li>请选择计划执行时长</li>
-        <li>请填写用户ONU的MAC地址,格式为XXXX-XXXX-XXXX,例如0007-2680-3C83</li>
+        <li>选择需要变更到的服务类型，"社区"指方宽自营业务</li>
         <br><br>
     </div>
 
@@ -102,6 +101,9 @@
                 'ports_name': dropdown.port_name.val(),
                 'service_type': dropdown.service_type.val()
             };
+
+            $('#autoregister_form').showLoading();
+
             $.ajax({
                 type: "POST",          //提交方式          
                 url: "change_service",  //提交的页面/方法名          
@@ -109,15 +111,18 @@
                 contentType: "application/json; charset=utf-8",
                 success: function (msg) {
                     if (msg.status === 'ok') {
+                        alert(msg.status);
                         toastr.info(msg.result);
+                        $('#autoregister_form').hideLoading();
                     }
                     else {
                         toastr.error(msg.result);
+                        $('#autoregister_form').hideLoading();
                     }
 
                 },
                 error: function (xhr, msg, e) {
-                    toastr.error("删除失败");
+                    toastr.error("变更失败");
                 }
             });
         });

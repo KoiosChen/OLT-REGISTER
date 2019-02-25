@@ -360,7 +360,7 @@ class TelnetDevice:
         portid = kwargs.setdefault('portid', '1')
         fsp = kwargs.get('f') + '/' + kwargs.get('s') + '/' + kwargs.get('p')
         self.tn.write(b'display ont-learned-mac ' + fsp.encode('utf8') + b' ' + kwargs.get('ontid').encode('utf8') +
-                      b' ' + b'eth ' + portid.encode('utf8') + b' ' +kwargs.get('vlanid').encode('utf8') + b'\n')
+                      b' ' + b'eth ' + portid.encode('utf8') + b' ' + kwargs.get('vlanid').encode('utf8') + b'\n')
         self.tn.expect([b'<cr>', ], self.command_timeout)
         self.tn.write(b'\n\n')
         return self.get_result(stop=r'\(config\)\#', patern1='', patern2='')[0]
@@ -441,7 +441,8 @@ class TelnetDevice:
         """
         try:
             logger.debug("ont modify {} {} mac {}".format(port, ontid, mac))
-            self.tn.write(b'ont modify ' + port.encode('utf8') + b' ' + ontid.encode('utf8') + b' mac ' + mac.encode('utf8') + b'\n')
+            self.tn.write(b'ont modify ' + port.encode('utf8') + b' ' + ontid.encode('utf8') + b' mac ' + mac.encode(
+                'utf8') + b'\n')
             time.sleep(1)
             if self.tn.expect([b'registered', ], self.command_timeout):
                 if force:
@@ -457,6 +458,25 @@ class TelnetDevice:
                 return True
         except Exception as e:
             logger.error(e)
+            return False
+
+    def add_service_port(self, port, pevlan, cevlan_range='unicom'):
+        cevlan = {'unicom': '2094 to 4094'}
+        try:
+            logger.debug("add service port for this olt on port {}, pevlan {}".format(port, pevlan))
+            fsp = '0/' + port
+            self.tn.write(b'service-port vlan ' +
+                          port.encode('utf8') +
+                          b' epon ' +
+                          fsp.encode('utf8') +
+                          b' ont all multi-service user-vlan ' +
+                          cevlan[cevlan_range].encode('utf8') +
+                          b' tag-transform default\n')
+            time.sleep(1)
+            self.tn.write(b'\n')
+            line_result = self.get_result(stop=r'\(config\)\#', patern1='Failure', patern2='Failure')[1]
+            return False if line_result else True
+        except:
             return False
 
     def quit(self):
@@ -482,7 +502,6 @@ class TelnetDevice:
     def telnet_close(self):
         self.tn.close()
 
-
 if __name__ == '__main__':
 
     def sync_cevlan(ip, username, password):
@@ -490,7 +509,6 @@ if __name__ == '__main__':
         # telnet olt
         tlt = TelnetDevice('', ip, username, password)
         return tlt.check_temperature()
-
 
     a = sync_cevlan(ip='172.30.4.12', username='monitor', password='shf-k61-906')
     for x in a:
