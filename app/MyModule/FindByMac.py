@@ -3,13 +3,15 @@ from flask import session
 from ..telnet_device import Telnet5680T
 
 
-def FindByMac(mac, ip, username, password, level='base'):
+def FindByMac(mac, ip, username, password, level='base', tlt=None):
     logger.info('User {} is using FindByMac mac:{}, ip:{}'.format(session['LOGINNAME'], mac, ip))
+    logger.debug(tlt)
     try:
-        tlt = Telnet5680T.TelnetDevice(mac, ip, username, password)
+        tlt = Telnet5680T.TelnetDevice(mac, ip, username, password) if tlt is None else tlt
+        logger.debug(tlt)
         fsp, ont_id, result = tlt.find_by_mac(mac)
     except Exception as e:
-        logger.error(e)
+        logger.error('find by mac error {}'.format(e))
         return False, False, False, False
 
     if level == 'verbose':
@@ -37,7 +39,8 @@ def FindByMac(mac, ip, username, password, level='base'):
             return False, False, False, False
     elif level == 'fsp':
         if fsp:
-            tlt.telnet_close()
+            if tlt is None:
+                tlt.telnet_close()
             return fsp, ont_id, '_', '_'
         else:
             tlt.telnet_close()
@@ -53,5 +56,6 @@ def FindByMac(mac, ip, username, password, level='base'):
             tlt.telnet_close()
             return False, False, False, False
     else:
-        tlt.telnet_close()
+        if tlt is None:
+            tlt.telnet_close()
         return fsp, ont_id, result, '_'

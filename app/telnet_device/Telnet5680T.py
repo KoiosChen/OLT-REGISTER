@@ -3,6 +3,7 @@ import time
 import re
 from flask import session
 from .. import logger
+from collections import defaultdict
 from ..MyModule import CheckLicence
 
 
@@ -141,6 +142,30 @@ class TelnetDevice:
                     continue
         return False
 
+    def auto_find_onu_all(self):
+        logger.debug('display ont autofind all')
+        self.tn.write(b'display ont autofind all\n')
+        result, __ = self.get_result(stop=r'\(config\)\#', patern1='', patern2='')
+        flag = False
+        mac_fsp = []
+        for i in result:
+            i = i.replace(' ', '')
+            logger.debug('auto find result {}'.format(i))
+            if re.search(r'F\/S\/P', str(i)) and flag is False:
+                logger.debug('re %s' % i)
+                mac_fsp.append({})
+                mac_fsp[len(mac_fsp) - 1]['fsp'] = i.split(':')[1]
+                flag = True
+            # elif flag is True and re.search(r'Mac|MAC', str(i)):
+            elif flag and re.search(r'[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}', str(i)):
+                find_mac = re.findall(r'([0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4})', str(i))[0]
+                logger.debug('find mac {}'.format(find_mac))
+                logger.debug('Get {} on {}'.format(find_mac, mac_fsp[len(mac_fsp) - 1]['fsp']))
+                mac_fsp[len(mac_fsp) - 1]['mac'] = find_mac
+                flag = False
+        return mac_fsp
+
+
     def display_ont_autofind_all(self):
         print('display ont autofind all')
         self.tn.write(b'display ont autofind all\n')
@@ -221,11 +246,10 @@ class TelnetDevice:
         :param mac:
         :return: f/s/p
         """
-        print('start to find by mac')
+        logger.debug(self.tn)
         self.tn.write(b'display ont info by-mac ' + mac.encode('utf8') + b'\n')
         time.sleep(self.command_interval)
         result, line_match = self.get_result(stop=r'\(config\)\#', patern1=r'F/S/P', patern2=':')
-        print(line_match)
         if line_match:
             find_result = str(line_match).replace(' ', '').strip('\'').split(':')
         else:
@@ -234,7 +258,6 @@ class TelnetDevice:
         ont_id = ''
         for line in result:
             if re.search(r'ONT-ID', line):
-                print(line)
                 ont_id = str(line).replace(' ', '').strip('\'').split(':')[1]
 
         return find_result[1] if find_result else False, ont_id, result
@@ -418,7 +441,7 @@ class TelnetDevice:
 
     def display_service_port_in_interface(self, fsp):
         print('display service port fsp')
-        self.tn.write(b'display service port ' + fsp.encode('utf8') + b'\n')
+        self.tn.write(b'display service-port port ' + fsp.encode('utf8') + b'\n')
         self.tn.expect([b'<cr>', ], self.command_timeout)
         self.tn.write(b'\n\n')
         return self.get_result(stop=r'\(config\)\#', patern1='', patern2='')[0]

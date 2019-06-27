@@ -7,7 +7,7 @@
 {% block page_content %}
     <div class="page-header">
         <h3>说明:</h3>
-        <li>此功能用于自动变更PON口下所有ONU的服务类型</li>
+        <li>此功能用于注册所有新发现的ONU</li>
         <li>请选择用户社区对应的机房 -> OLT -> 端口</li>
         <li>选择需要变更到的服务类型，"社区"指方宽自营业务</li>
         <br><br>
@@ -18,6 +18,7 @@
         <p>{{ wtf.form_field(form.olt_name) }}</p>
         <p>{{ wtf.form_field(form.port) }}</p>
         <p>{{ wtf.form_field(form.service_type) }}</p>
+        <p>{{ wtf.form_field(form.scheduler) }}</p>
 
         <button type="button" class="btn btn-primary" data-dismiss="modal" id="submit">提交注册</button>
     </div>
@@ -35,7 +36,8 @@
             machine_room: $('#select_machine_room'),
             olt_name: $('#select_olt'),
             port_name: $('#select_port'),
-            service_type: $('#select_service_type')
+            service_type: $('#select_service_type'),
+            scheduler: $('#select_scheduler')
         };
 
 
@@ -99,17 +101,17 @@
             var params = {
                 'olt_name': dropdown.olt_name.val(),
                 'ports_name': dropdown.port_name.val(),
-                'service_type': dropdown.service_type.val()
+                'service_type': dropdown.service_type.val(),
+                'scheduler': dropdown.scheduler.val(),
             };
 
             $('#autoregister_form').showLoading();
 
             $.ajax({
-                type: "POST",          //提交方式
-                url: "change_service",  //提交的页面/方法名
-                data: JSON.stringify(params, null, '\t'),         //参数（如果没有参数：null）
+                type: "POST",          //提交方式          
+                url: "add_scheduler",  //提交的页面/方法名          
+                data: JSON.stringify(params, null, '\t'),         //参数（如果没有参数：null）          
                 contentType: "application/json; charset=utf-8",
-                timeout: 0,
                 success: function (msg) {
                     if (msg.status === 'ok') {
                         toastr.info(msg.result);
@@ -122,7 +124,7 @@
 
                 },
                 error: function (xhr, msg, e) {
-                    toastr.error(e);
+                    toastr.error("变更失败");
                     $('#autoregister_form').hideLoading();
                 }
             });

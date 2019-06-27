@@ -1,4 +1,4 @@
-from flask_wtf import Form
+from flask_wtf import FlaskForm
 from flask import session
 from wtforms.validators import DataRequired, Email, Length, Regexp, EqualTo, IPAddress, Optional, NumberRange, \
     ValidationError
@@ -15,7 +15,7 @@ def check_workorder_login_name(form, field):
         raise ValidationError('此工单用户名已存在')
 
 
-class BaseForm(Form):
+class BaseForm(FlaskForm):
     machine_room_name = SelectField(label='请选择上联机房:')
     mac = StringField('请输入ONU MAC地址:', validators=[DataRequired(),
                                                    Regexp('^[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}',
@@ -29,7 +29,7 @@ class BaseForm(Form):
         self.machine_room_name.choices = get_machine_room_by_area(session.get('permit_machine_room'))
 
 
-class FindByMacForm(Form):
+class FindByMacForm(FlaskForm):
     mac = StringField('请输入ONU MAC地址:', validators=[DataRequired(),
                                                    Regexp('^[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}',
                                                           0, '无效的MAC地址')])
@@ -37,7 +37,7 @@ class FindByMacForm(Form):
     submit = SubmitField('提交')
 
 
-class DeviceForm(Form):
+class DeviceForm(FlaskForm):
     machine_room_name = SelectField(label='请选择上联机房:')
     device_name = StringField('device name', validators=[DataRequired()])
     ip = StringField('IP', validators=[DataRequired(), IPAddress()])
@@ -53,7 +53,7 @@ class DeviceForm(Form):
         self.machine_room_name.choices = get_machine_room_by_area(session.get('permit_machine_room'))
 
 
-class OntRegisterForm(Form):
+class OntRegisterForm(FlaskForm):
     machine_room_name = SelectField(label='请选择上联机房:')
     mac = StringField('请输入ONU MAC地址:', validators=[DataRequired(),
                                                    Regexp('^[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}',
@@ -80,7 +80,7 @@ class OntRegisterForm(Form):
             self.machine_room_name.choices = get_machine_room_by_area(session.get('permit_machine_room'))
 
 
-class OntRegisterFormByManager(Form):
+class OntRegisterFormByManager(FlaskForm):
     machine_room_name = SelectField(label='请选择上联机房:')
     mac = StringField('请输入ONU MAC地址:', validators=[DataRequired(),
                                                    Regexp('^[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}',
@@ -108,7 +108,7 @@ class OntRegisterFormByManager(Form):
         self.machine_room_name.choices = get_machine_room_by_area(session.get('permit_machine_room'))
 
 
-class RegistrationForm(Form):
+class RegistrationForm(FlaskForm):
     duty_choice = [('1', '组员'), ('2', '组长'), ('3', '大区经理'), ('4', '大区维护'), ('5', '网管'), ('6', '运维主管'), ('7', '电力工程师')]
 
     username = StringField('用户名', validators=[DataRequired(),
@@ -137,7 +137,7 @@ class RegistrationForm(Form):
             raise ValidationError('此工单用户名已存在')
 
 
-class AreaConfigForm(Form):
+class AreaConfigForm(FlaskForm):
     area_name = StringField('请输入大区名称:', validators=[DataRequired()])
     area_machine_room = SelectMultipleField('请选择可管辖机房', validators=[DataRequired()])
     submit = SubmitField('提交')
@@ -147,7 +147,7 @@ class AreaConfigForm(Form):
         self.area_machine_room.choices = get_machine_room_by_area(session.get('permit_machine_room'))
 
 
-class CommuntiyMachineroomConfig(Form):
+class CommuntiyMachineroomConfig(FlaskForm):
     community_name = StringField('请输社区名称:', validators=[DataRequired()])
     machine_room = SelectMultipleField('请选择上联机房', validators=[DataRequired()])
     submit = SubmitField('提交')
@@ -157,7 +157,7 @@ class CommuntiyMachineroomConfig(Form):
         self.machine_room.choices = get_machine_room_by_area(session.get('permit_machine_room'))
 
 
-class OntRegisterInspector(Form):
+class OntRegisterInspector(FlaskForm):
     start_time = DateTimeField(label='统计开始时间:', validators=[Optional()], format='%Y-%m-%d %H:%M')
     stop_time = DateTimeField(label='统计结束时间:', validators=[Optional()], format='%Y-%m-%d %H:%M')
     machine_room_name = SelectMultipleField(label='请选择机房:')
@@ -193,7 +193,7 @@ class OntRegisterInspector(Form):
             return [(str(loginarea), area_name)]
 
 
-class MaintainPevlanForm(Form):
+class MaintainPevlanForm(FlaskForm):
     device_name = SelectField(label='请选择OLT设备:')
     pevlan = StringField(label='请输入外层VLAN:')
     service_type = SelectField(label='请选择服务类型',
@@ -207,7 +207,7 @@ class MaintainPevlanForm(Form):
         self.device_name.choices = get_device_name()
 
 
-class ManualSync(Form):
+class ManualSync(FlaskForm):
     device_name = SelectMultipleField(label='请选择OLT设备:')
     sync_action = RadioField(label='请选择同步内容:', choices=[('1', '同步CEVLAN'), ('2', '同步SERVICE PORT'),
                                                         ('3', '同步ONU基础信息'), ('4', '同步ONU光衰及下线原因'),
@@ -219,7 +219,7 @@ class ManualSync(Form):
         self.device_name.choices = get_device_name()
 
 
-class OntAutoFindForm(Form):
+class OntAutoFindForm(FlaskForm):
     machine_room = SelectField(label='请选择机房:')
     submit = SubmitField('提交')
 
@@ -228,7 +228,7 @@ class OntAutoFindForm(Form):
         self.machine_room.choices = get_machine_room_by_area(session.get('permit_machine_room'))
 
 
-class OltCheck(Form):
+class OltCheck(FlaskForm):
     machine_room = SelectMultipleField(label='请选择机房:')
     submit = SubmitField('提交')
 
@@ -237,7 +237,7 @@ class OltCheck(Form):
         self.machine_room.choices = get_machine_room_by_area(session.get('permit_machine_room'))
 
 
-class AlterEponInterfaceForm(Form):
+class AlterEponInterfaceForm(FlaskForm):
     source_machine_room = SelectMultipleField(label='请选择换口前机房:', validators=[DataRequired()])
     destincation_machine_room = SelectMultipleField(label='请选择目标机房:', validators=[DataRequired()])
     submit = SubmitField('查找')
@@ -249,7 +249,7 @@ class AlterEponInterfaceForm(Form):
             get_machine_room_by_area(session.get('permit_machine_room'))
 
 
-class UserModal(Form):
+class UserModal(FlaskForm):
     duty_choice = [('1', '组员'), ('2', '组长'), ('3', '大区经理'), ('4', '大区维护'), ('5', '网管'), ('0', None)]
 
     username = StringField('用户名', validators=[Regexp('^[\u4E00-\u9FA5]*$', 0,
@@ -272,7 +272,7 @@ class UserModal(Form):
         self.area.choices = a
 
 
-class AreaModal(Form):
+class AreaModal(FlaskForm):
     area_name = StringField('大区名:')
     area_desc = StringField('大区描述:')
     machine_room_name = SelectMultipleField('请选择可管理的机房:')
@@ -282,19 +282,24 @@ class AreaModal(Form):
         self.machine_room_name.choices = get_machine_room_by_area(session.get('permit_machine_room'))
 
 
-class PcapOrder(Form):
+class PcapOrder(FlaskForm):
     accountId = StringField('用户编号', validators=[DataRequired()])
     question = TextAreaField('问题描述', validators=[DataRequired()])
     submit = SubmitField('提交')
 
 
-class AutoRegister(Form):
+class AutoRegister(FlaskForm):
     scheduler_choice = [('5', '5分钟'), ('30', '30分钟'), ('60', '1小时'), ('720', '12小时'), ('1440', '24小时')]
     machine_room = SelectField('请选择上联机房:', validators=[DataRequired()], id='select_machine_room')
     olt_name = SelectField('请选择OLT:', validators=[DataRequired()], id='select_olt')
     port = SelectMultipleField('请选择端口（可多选）:', validators=[DataRequired()], id='select_port')
-    # scheduler = SelectField('请选择执行时长:', validators=[DataRequired()], id='select_scheduler', choices=scheduler_choice)
+    scheduler = SelectField('请选择执行时长:', validators=[DataRequired()], id='select_scheduler', choices=scheduler_choice)
     service_type = SelectField(label='请选择服务类型',
                                choices=[('1', '社区'), ('4', '联通')],
                                validators=[DataRequired()],
                                default='1', id='select_service_type')
+
+
+class SelfDelete(FlaskForm):
+    machine_room = SelectField('请选择上联机房:', validators=[DataRequired()], id='select_machine_room')
+    mac = StringField('请输入ONU MAC地址:', validators=[DataRequired()], id='select_mac')

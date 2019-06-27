@@ -4,15 +4,17 @@ import re
 import time
 from datetime import datetime
 from .models import MachineRoom, Device, AccountInfo, ONTDetail, MacLearnedByONT, OntRegister, CeVlan, ServicePort, \
-    PeVlan
+    PeVlan, User, RegisterModify
 from .telnet_device import Telnet5680T, TelnetME60
 from . import db, logger
 from sqlalchemy import or_, update
 from .MyModule import SaveData, OntStatus
-from flask import flash, session
+from .MyModule.OntStatus import ontLocation
+from flask import flash, session, jsonify
 from collections import defaultdict
 import sys
 import random
+import json
 
 
 def get_machine_room_by_area(permit_machine_room):
@@ -493,6 +495,7 @@ def test():
 
 
 def ont_add_native_vlan(tlt, **kwargs):
+    logger.debug('start to add ont native vlan')
     eth = {'1': '1', '2': '4', '3': '1'}
     ont_model = kwargs.get('ont_model', '1')
     device_id = kwargs.get('device_id')
@@ -503,13 +506,14 @@ def ont_add_native_vlan(tlt, **kwargs):
     ont_id = kwargs.get('ont_id')
     mac = kwargs.get('mac')
     username = kwargs.get('username')
-    user_addr = kwargs.get('project') + '/' + kwargs.get('number', '')
+    user_addr = kwargs.get('project', '') + '/' + kwargs.get('number', '')
     reporter_group = kwargs.get('reporter_group', 'r2d2')
     reporter_name = kwargs.get('reporter_name', 'r2d2')
     register_name = kwargs.get('register_name', 'r2d2')
     remarks = kwargs.get('remarks', 'r2d2')
-    eth_port = eth[ont_model]
-    cevlan = get_cevlan(device_id, f, s, p, service_type)
+    eth_ports = kwargs.get('eth_ports', list(range(1, int(eth[ont_model]) + 1)))
+    logger.debug(str(eth_ports))
+    cevlan = kwargs.get('cevlan', get_cevlan(device_id, f, s, p, service_type))
 
     # {'remarks': 'unicom', 'service_type': '4', 'user_addr': 'unicom', 'device_id': 26, 'reporter_name': 'r2d2',
     #  'ont_id': '9', 'username': 'unicom', 'ont_model': '1', 'register_name': 'r2d2', 's': '4', 'mac': '001F-A4D6-B069',
@@ -524,14 +528,14 @@ def ont_add_native_vlan(tlt, **kwargs):
 
         add_cevlan_flag = 0
         tlt.go_into_interface_mode(f + '/' + s + '/' + p)
-        for e_port in range(1, int(eth_port) + 1):
+        for e_port in eth_ports:
             if tlt.ont_port_native_vlan_add(p, ont_id, str(e_port), cevlan):
                 logger.debug('add ont on {} {} eth {} cevlan {}'.format(p, ont_id, str(e_port), cevlan))
                 add_cevlan_flag += 1
 
         logger.debug('add_cevlan_flag: {}'.format(add_cevlan_flag))
 
-        regist_status = 1 if add_cevlan_flag == int(eth_port) else 4
+        regist_status = 1 if add_cevlan_flag == int(eth[ont_model]) else 4
 
         # insert register log into database
         try:
@@ -750,10 +754,8 @@ def get_cevlan(device_id, f, s, p, service_type):
             ont_regist_info = CeVlan.query.filter_by(device_id=device_id, f=frame, s=slot, p=port).all()
             if ont_regist_info:
                 for info in ont_regist_info:
-                    logger.debug(info)
                     if len(info.cevlan) > 0:
                         if int(info.cevlan) in source:
-                            logger.debug('cevlan in source: {}'.format(info.cevlan))
                             list2.append(int(info.cevlan))
             else:
                 list2.append(2)
@@ -770,6 +772,288 @@ def get_cevlan(device_id, f, s, p, service_type):
     except ValueError:
         logger.error('does not find cevlan for {} {}/{}/{} {}'.format(device_id, f, s, p, service_type))
         return False
+
+
+def ont_register(**kwargs):
+    logger.debug(kwargs)
+    service_type_dict = {'1': 'founderbn', '4': 'unicom'}
+
+    account_id = kwargs['account_id']
+    mac = kwargs['mac'].upper()
+    machine_room_id = kwargs.get('machine_room_id')
+    currentState = kwargs.get('currentState')
+    customerAddr = kwargs.get('customerAddr')
+    communityName = kwargs.get('communityName')
+    aptNo = kwargs.get('aptNo')
+    ont_model_choice = kwargs.get('ont_model_choice')
+    service_type = kwargs.get('service_type')
+    autofind_result = kwargs.get('autofind_result', ont_autofind_func(machine_room_id, mac))
+    cevlan = kwargs.get('cevlan')
+    eth = kwargs.get('eth')
+
+    # 查找该机房下是否有对应的光猫，如果未找到则直接返回用户信息，不进行下面代码
+    if not autofind_result:
+        try:
+            find_exist_ont = ontLocation(machine_room=machine_room_id, mac=mac)
+            logger.debug(str(find_exist_ont))
+            if find_exist_ont:
+                for device_id, ont_info in find_exist_ont.items():
+                    row_raw = {'device_id': device_id,
+                               'ont_model': ont_model_choice,
+                               'project': communityName,
+                               'number': aptNo,
+                               'username': account_id,
+                               'user_addr': customerAddr,
+                               'reporter_group': 'r2d2',
+                               'reporter_name': 'r2d2',
+                               'register_name': 'r2d2',
+                               'remarks': service_type_dict[service_type],
+                               'service_type': service_type}
+
+                    change_result = change_service(olt_name=device_id, ports_name=None, service_type=service_type,
+                                                   mac={'mac': mac, 'info': ont_info}, raw_info=row_raw)
+                    if change_result['status'] == 'true':
+                        session['REGIST_RESULT'] = "变更服务成功"
+                        return jsonify({"status": "ok", "content": "变更服务成功"})
+                    else:
+                        session['REGIST_RESULT'] = "变更服务失败"
+                        return jsonify({"status": "fail", "content": "变更服务失败"})
+            else:
+                return jsonify({"status": "fail", "content": "在所选机房未找到此光猫（{}）".format(mac)})
+        except:
+            return jsonify({"status": "fail", "content": "在所选机房未找到此光猫（{}）".format(mac)})
+
+    # 查找历史的注册记录，可能有多条
+    if account_id != 'r2d2':
+        ont_regist_check = OntRegister.query.filter_by(username=account_id, status=1).all()
+    else:
+        ont_regist_check = OntRegister.query.filter_by(mac=mac, status=1).all()
+
+    # 验证历史注册记录中的信息与设备上的配置，主要是接口相符；正常情况，verify_onu_location只会有一条
+    verify_onu_location = []
+
+    for the_ont_record in ont_regist_check:
+        the_location = ontLocation(device_id=the_ont_record.device_id, mac=the_ont_record.mac)
+        if not the_location:
+            break
+        print(the_location[the_ont_record.device_id][0], the_location[the_ont_record.device_id][1])
+        print('the location: ', the_location)
+        if the_location and tuple(the_location[the_ont_record.device_id][0].split('/')) == (
+                the_ont_record.f, the_ont_record.s, the_ont_record.p):
+            verify_onu_location.append((the_ont_record, the_location[the_ont_record.device_id][1]))
+
+    # 用于注册新ONU的变量
+    args = {'reporter_name': session.get('LOGINNAME'),
+            'reporter_group': User.query.filter_by(email=session.get('LOGINUSER')).first().area,
+            'register_name': session.get('LOGINNAME'),
+            'remarks': currentState,
+            'username': account_id,
+            'user_addr': customerAddr,
+            'mac': mac,
+            'ip': '',
+            'login_name': '',
+            'login_password': '',
+            'ont_model': ont_model_choice,
+            'device_id': '',
+            'status': 1,
+            'service_type': service_type,
+            'api_version': 0.1,
+            'cevlan': cevlan,
+            'eth': eth
+            }
+
+    # 如果上述验证都存在，则判断是换口还是换猫
+    if ont_regist_check and verify_onu_location:
+        regist_history = []
+        for index, (record, ontId) in enumerate(verify_onu_location):
+            print(record)
+            for device_id, fsp in autofind_result.items():
+                print("autofind result:", device_id, fsp, mac)
+                print("history:", record.device_id, record.s, record.p, record.mac)
+                if not fsp:
+                    # 如果fsp为 False， 表示在这个设备上未找到ONU
+                    continue
+                now_f, now_s, now_p = fsp.split('/')
+                if [now_f, now_s, now_p] == ['0', record.s, record.p] and device_id == record.device_id:
+                    # 标记换猫
+                    regist_history.append({"record_obj": record,
+                                           "fromOntId": ontId,
+                                           "action": "1",
+                                           "from_mac": record.mac,
+                                           "to_mac": mac,
+                                           "now_device_id": device_id,
+                                           "now_s": now_s,
+                                           "now_p": now_p})
+                elif device_id != record.device_id or now_s != record.s or now_p != record.p:
+                    # 标记换口 允许onu mac 相同。
+                    regist_history.append({"record_obj": record,
+                                           "fromOntId": ontId,
+                                           "action": "2",
+                                           "device_id": device_id,
+                                           "from_device": record.device_id,
+                                           "from_fsp": "0/" + record.s + "/" + record.p,
+                                           "from_mac": record.mac,
+                                           "to_device": device_id,
+                                           "to_fsp": "0/" + now_s + "/" + now_p,
+                                           "to_mac": mac})
+                else:
+                    # 标记为其它未考虑因素
+                    regist_history.append({"record_obj": record, "action": "3"})
+
+        if not regist_history:
+            # 如果regist_history为空，表示没有找到需要注册的ONU，原则上不会运行到这个判断。为老代码，暂不删除
+            return jsonify({"status": "fail", "content": "在所选机房未找到此光猫（{}）".format(mac)})
+        else:
+            # 使用operate_cache来存放四要素信息，如果存在，表明这条历史注册记录已经被处理过
+            operate_cache = []
+            print(regist_history)
+            for record_action in regist_history:
+                print(record_action)
+                robj = record_action["record_obj"]
+                if (robj.device_id, robj.s, robj.p, robj.mac) in operate_cache:
+                    robj.status = 998
+                    db.session.add(robj)
+                    db.session.commit()
+                else:
+                    operate_cache.append((robj.device_id, robj.s, robj.p, robj.mac))
+
+                    # 如果不存在四要素的cache，说明是第一次匹配到这条历史记录
+                    if record_action["action"] == "1":
+                        # 换猫
+
+                        # 换猫操作，其中的ontid为实际目前的ontid
+                        logger.info("do ont modify for record {}".format(robj.id))
+                        modify_result = ont_modify_func(robj.device_id, robj.f, robj.s, robj.p,
+                                                        record_action['fromOntId'], mac, force=True)
+
+                        if modify_result['status'] == 'ok':
+                            # 更新历史记录状态为997， 表示换猫记录
+                            robj.status = 997
+                            record_action["return_info"] = "\t换猫： 从{}换成{}".format(record_action['from_mac'],
+                                                                                  record_action['to_mac'])
+                            new_record = OntRegister(f=robj.f, s=robj.s, p=robj.p, mac=mac,
+                                                     cevlan=robj.cevlan, ont_id=robj.ont_id,
+                                                     device_id=robj.device_id,
+                                                     ont_model=robj.ont_model,
+                                                     regist_status=robj.regist_status,
+                                                     username=robj.username,
+                                                     user_addr=customerAddr,
+                                                     reporter_name=session.get('LOGINNAME'),
+                                                     reporter_group=User.query.filter_by(
+                                                         email=session.get('LOGINUSER')).first().area,
+                                                     regist_operator=session.get('LOGINNAME'),
+                                                     remarks=json.dumps({"modify_reason": record_action["action"],
+                                                                         "account_current_status": currentState}),
+                                                     status=1,
+                                                     create_time=time.localtime(),
+                                                     update_time=time.localtime())
+
+                            db.session.add(new_record)
+                            db.session.commit()
+
+                            modify_record = RegisterModify(from_id=robj.id,
+                                                           to_id=new_record.id,
+                                                           modify_reason=record_action["action"],
+                                                           account_current_status=currentState,
+                                                           create_time=time.localtime())
+                            db.session.add(modify_record)
+                            db.session.add(robj)
+                            for r in ont_regist_check:
+                                if r.id != robj.id:
+                                    r.status = 998
+                                    db.session.add(r)
+                            db.session.commit()
+                            session['REGIST_RESULT'] = modify_result['content']
+                            return jsonify(modify_result)
+                        else:
+                            session['REGIST_RESULT'] = modify_result['content']
+                            return jsonify(modify_result)
+
+                    elif record_action["action"] == "2":
+                        # 换口
+                        # 更新历史记录状态为996， 表示换口，这里直接使用release_ont_func方法，会对历史记录状态进行调整
+                        release_result = release_ont_func(robj.device_id, robj.f, robj.s, robj.p,
+                                                          record_action['fromOntId'], robj.mac, to_status=996)
+                        if not release_result:
+                            return jsonify({"status": "fail", "content": "换口操作中释放历史ONU失败，请联系值班网管"})
+
+                        # flash("原纪录光猫已删除")
+
+                        # 若释放成功，则开始注册操作
+                        args['device_id'] = record_action['device_id']
+                        args['remarks'] = json.dumps({"modify_reason": record_action["action"],
+                                                      "account_current_status": currentState})
+                        args['force'] = True
+                        register_result = ont_register_func(**args)
+
+                        # api_version 为0.1 返回消息格式为{"status": "", "content": ""}
+                        if register_result.get('status') == 'ok':
+                            # 如果注册成功，则写入变更记录
+                            modify_record = RegisterModify(from_id=robj.id,
+                                                           to_id=register_result['content'],
+                                                           modify_reason=record_action["action"],
+                                                           account_current_status=currentState,
+                                                           create_time=time.localtime())
+                            db.session.add(modify_record)
+                            for r in ont_regist_check:
+                                if r.id != robj.id:
+                                    r.status = 998
+                                    db.session.add(r)
+                            db.session.commit()
+                            # 此处注册成功不需要flash message到网页上，因为ont_register_func中有对应的flash message
+                            session['REGIST_RESULT'] = '换口成功，新ONU已成功注册，请确认用户上网是否正常'
+                            return jsonify(register_result)
+                        else:
+                            # 回滚原先记录
+                            robj.status = 1
+                            db.session.add(robj)
+                            db.session.commit()
+                            return jsonify({"status": "fail", "content": register_result["content"]})
+
+                    elif record_action["action"] == "3":
+                        return jsonify({"status": "fail", "content": "注册异常，请联系技术部值班网管"})
+
+            return jsonify({"status": "ok", "content": [r["return_info"] for r in regist_history]})
+
+    elif not verify_onu_location or not ont_regist_check:
+        for device_id, fsp in autofind_result.items():
+            print("autofind result:", device_id, fsp, mac)
+            if not fsp:
+                # 如果fsp为 False， 表示在这个设备上未找到ONU
+                continue
+            else:
+                # 若释放成功，则开始注册操作
+                args['device_id'] = device_id
+                args['remarks'] = json.dumps({"modify_reason": "4",
+                                              "account_current_status": currentState})
+                args['force'] = True
+                register_result = ont_register_func(**args)
+
+                # api_version 为0.1 返回消息格式为{"status": "", "content": ""}
+                if register_result.get('status') == 'ok':
+                    if ont_regist_check:
+                        for r in ont_regist_check:
+                            r.status = 998
+                            modify_record = RegisterModify(from_id=r.id,
+                                                           to_id=register_result['content'],
+                                                           modify_reason="998",
+                                                           account_current_status=currentState,
+                                                           create_time=time.localtime())
+                            db.session.add(modify_record)
+                            db.session.add(r)
+                            for rr in ont_regist_check:
+                                if rr.id != r.id:
+                                    rr.status = 998
+                                    db.session.add(rr)
+                        db.session.commit()
+                    logger.info("register {} on {} successful".format(mac, device_id))
+                    session['REGIST_RESULT'] = '新ONU已成功注册，请确认用户上网是否正常'
+
+                    return jsonify({"status": "ok", "content": "注册成功，请确认用户上网正常"})
+                else:
+                    return jsonify({"status": "fail", "content": register_result["content"]})
+
+        return jsonify({'status': 'new_delOld', 'content': '注册记录信息与实际设备配置不付，重新注册并删除旧的注册记录'})
 
 
 def ont_register_func(**kwargs):
@@ -832,6 +1116,7 @@ def ont_register_func(**kwargs):
     api_version = kwargs.get('api_version', 0)
     # 如果force = True， 用于强制换口
     force = kwargs.get('force', False)
+    cevlan = kwargs.get('cevlan')
 
     # write log
     logger.info('User {} is using ont_register_func'.format(session['LOGINNAME']))
@@ -903,7 +1188,7 @@ def ont_register_func(**kwargs):
                 logger.info('ONT register successfully {}. MAC {} fsp {} ontid {}'.format(success, mac, fsp, ont_id))
 
                 eth_port = eth[ont_model]
-                cevlan = get_cevlan(device_id, f, s, p, service_type)
+                cevlan = get_cevlan(device_id, f, s, p, service_type) if not cevlan else cevlan
                 if cevlan:
                     # write log
                     logger.info('Get the cevlan {}'.format(cevlan))
@@ -1460,7 +1745,88 @@ def ont_modify_func(device_id, f, s, p, ontid, mac, force=False):
         return {"status": "fail", "content": "更换光猫操作异常, 未找到设备信息, 请联系值班网管"}
 
 
-def change_service(olt_name=None, ports_name=None, service_type='4', mac=None):
+def do_autoregister(olt_id, ports, service_type):
+    logger.debug(olt_id)
+    logger.debug(ports)
+    device_info = Device.query.filter_by(id=olt_id).first()
+    ip, login_name, login_password = device_info.ip, device_info.login_name, device_info.login_password
+    try:
+        tlt = Telnet5680T.TelnetDevice('', ip, login_name, login_password)
+        logger.debug('login {}'.format(ip))
+        all_new_ont = tlt.auto_find_onu_all()
+        logger.debug(all_new_ont)
+        # 找出指定端口自动发现的ONU
+        target_new_ont = []
+        if all_new_ont:
+
+            for fsp_mac in all_new_ont:
+                if fsp_mac['fsp'] in ports:
+                    target_new_ont.append(fsp_mac)
+
+        # 如果指定端口有未注册的ONU，做以下操作
+        logger.debug(target_new_ont)
+        if target_new_ont:
+            for fsp_mac in target_new_ont:
+                # 定位该ONU是否有注册，如果有，则定位到fsp和ontid
+                lr = OntStatus.ontLocation(device_id=olt_id, mac=fsp_mac['mac'])
+                logger.debug('lr_tmp {}'.format(lr))
+                locate_result = lr[int(olt_id)] if lr else False
+                logger.debug('locate_result is {}'.format(locate_result))
+                # 如果定位到，则做以下操作
+                if locate_result:
+                    fsp, ontid = locate_result
+                    f, s, p = fsp.split('/')
+                    # 进入到之前注册的端口，找到该ONU注册时使用的CEVLAN
+                    tlt.go_into_interface_mode(fsp)
+                    epon_current = tlt.display_epon_current()
+                    target_ont_re = re.compile(
+                        r'ont\s+port\s+native-vlan\s+' + p + '+\s+' + ontid + '\s+eth\s+(\d+)\s+vlan\s+(\d+)')
+                    for line in epon_current:
+                        # 如果找到对应注册记录
+                        if re.search(target_ont_re, line):
+                            eth, cevlan = re.findall(target_ont_re, line)[0]
+                            logger.debug(p + ' ' + ontid + ' ' + eth + ' ' + cevlan)
+                            # 释放到此接口下的注册配置
+                            if release_ont_func(olt_id, f, s, p, ontid, fsp_mac['mac']):
+                                logger.debug('released')
+                                if int(cevlan) <= 2094:
+                                    service_type = '1'
+                                else:
+                                    service_type = '4'
+
+                                # 用于注册新ONU的变量
+                                k = {'account_id': 'r2d2',
+                                     'mac': fsp_mac['mac'],
+                                     'machine_room_id': '',
+                                     'currentState': '1',
+                                     'customerAddr': 'r2d2',
+                                     'communityName': 'r2d2',
+                                     'aptNo': 'r2d2',
+                                     'ont_model_choice': '1',
+                                     'service_type': service_type,
+                                     'autofind_result': {olt_id: fsp_mac['fsp']},
+                                     'cevlan': cevlan}
+
+                                return ont_register(**k)
+                else:
+                    # 用于注册新ONU的变量
+                    logger.debug('start to register new ont')
+                    k = {'account_id': 'r2d2',
+                         'mac': fsp_mac['mac'],
+                         'machine_room_id': '',
+                         'currentState': '1',
+                         'customerAddr': 'r2d2',
+                         'communityName': 'r2d2',
+                         'aptNo': 'r2d2',
+                         'ont_model_choice': '1',
+                         'service_type': service_type,
+                         'autofind_result': {olt_id: fsp_mac['fsp']}}
+                    return ont_register(**k)
+    except Exception as e:
+        logger.debug(e)
+
+
+def change_service(olt_name=None, ports_name=None, service_type='4', mac=None, raw_info=None):
     """
 
     :param olt_name:
@@ -1478,16 +1844,20 @@ def change_service(olt_name=None, ports_name=None, service_type='4', mac=None):
     device_info = Device.query.filter_by(id=olt_name).first()
     ip, login_name, login_password = device_info.ip, device_info.login_name, device_info.login_password
 
-    row_raw = {'device_id': olt_name,
-               'ont_model': '1',
-               'number': '',
-               'username': service_type_dict[service_type],
-               'user_addr': service_type_dict[service_type],
-               'reporter_group': 'r2d2',
-               'reporter_name': 'r2d2',
-               'register_name': 'r2d2',
-               'remarks': service_type_dict[service_type],
-               'service_type': service_type}
+    if raw_info is None:
+        row_raw = {'device_id': olt_name,
+                   'ont_model': '1',
+                   'number': service_type_dict[service_type],
+                   'project': service_type_dict[service_type],
+                   'username': service_type_dict[service_type],
+                   'user_addr': service_type_dict[service_type],
+                   'reporter_group': 'r2d2',
+                   'reporter_name': 'r2d2',
+                   'register_name': 'r2d2',
+                   'remarks': service_type_dict[service_type],
+                   'service_type': service_type}
+    else:
+        row_raw = raw_info
 
     logger.debug(str(row_raw))
 
@@ -1499,6 +1869,8 @@ def change_service(olt_name=None, ports_name=None, service_type='4', mac=None):
             for port in ports_name:
                 dst_ont_list = []
                 f, s, p = port.split('/')
+                first_cevlan = get_cevlan(olt_name, f, s, p, service_type)
+                first_cevlan = first_cevlan if first_cevlan else None
                 tlt.go_into_interface_mode(port)
                 onts_info_list = tlt.display_ont_info(p)
                 epon_cur_conf = tlt.display_epon_current()
@@ -1506,25 +1878,36 @@ def change_service(olt_name=None, ports_name=None, service_type='4', mac=None):
                 for line in epon_cur_conf:
                     if re.search(r'native-vlan', line):
                         logger.debug('Get the cevlan config {}'.format(line))
-                        port, ontid, cevlan = re.findall(r'ont\s+port\s+native-vlan\s+(\d)+\s+(\d+)\s+eth\s+\d+\s+vlan\s+(\d+)', line)[0]
-                        cevlan_dict[port][ontid] = cevlan
-                        logger.debug(port + ' ' + ontid + ' ' + cevlan)
+                        port, ontid, eth, cevlan = \
+                            re.findall(r'ont\s+port\s+native-vlan\s+(\d)+\s+(\d+)\s+eth\s+(\d+)\s+vlan\s+(\d+)', line)[
+                                0]
+                        cevlan_dict[port][ontid] = {'cevlan': cevlan, 'eth': eth}
+                        logger.debug(port + ' ' + ontid + ' ' + eth + ' ' + cevlan)
                         logger.debug(str(cevlan_dict))
 
                 for line in onts_info_list:
                     if re.search(mac_reg, line):
                         ont_id, mac = re.findall('(\d+)\s+([0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4})', line)[0]
-                        logger.debug(p + ' ' + ont_id + ' ' + mac)
-                        now_vlan = cevlan_dict[p][ont_id]
-                        logger.debug("now the cevlan is {} type is ".format(now_vlan, type(now_vlan)))
-                        if int(now_vlan) < 2094:
-                            row_tmp = row_raw.copy()
-                            row_tmp['f'] = f
-                            row_tmp['s'] = s
-                            row_tmp['p'] = p
-                            row_tmp['mac'] = mac
-                            row_tmp['ont_id'] = ont_id
-                            dst_ont_list.append(row_tmp)
+                        if ont_id in cevlan_dict[p]:
+                            logger.debug(p + ' ' + ont_id + ' ' + mac)
+                            logger.debug(str(cevlan_dict[p][ont_id]))
+                            now_vlan = cevlan_dict[p][ont_id]['cevlan']
+                            logger.debug("now the cevlan is {}".format(now_vlan))
+                            if int(now_vlan) < 2094:
+                                row_tmp = row_raw.copy()
+                                row_tmp['f'] = f
+                                row_tmp['s'] = s
+                                row_tmp['p'] = p
+                                row_tmp['mac'] = mac
+                                row_tmp['ont_id'] = ont_id
+                                row_tmp['eth_ports'] = [cevlan_dict[p][ont_id]['eth']]
+
+                                if first_cevlan:
+                                    row_tmp['cevlan'] = first_cevlan
+                                    first_cevlan += 1
+
+                                logger.debug(str(row_tmp))
+                                dst_ont_list.append(row_tmp)
 
                 for r in dst_ont_list:
                     result = ont_add_native_vlan(tlt, **r)

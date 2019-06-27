@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block title %}Founder Shanghai SNOC{% endblock %}
+
+
+{% block page_content %}
+    <div class="page-header">
+        <h3>ONU删除:</h3>
+        <li>此功能用于删除ONU</li>
+        <li>请选择ONU对应的机房</li>
+        <li>请填写用户ONU的MAC地址,格式为XXXX-XXXX-XXXX, 例如0007-2680-3c83</li>
+        <li>网管电话: 021-80251595</li>
+        <br><br>
+    </div>
+    <div id="self_delete_form">
+        <p>{{ wtf.form_field(form.machine_room) }}</p>
+        <p>{{ wtf.form_field(form.mac) }}</p>
+
+        <button type="button" class="btn btn-primary" data-dismiss="modal" id="submit">删除</button>
+    </div>
+
+{% endblock %}
+
+
+
+{% block scripts %}
+    {{ super() }}
+    <link href="{{ url_for('static', filename='showLoading.css') }}" rel="stylesheet" media="screen"/>
+    <script type="text/javascript" src="{{ url_for('static', filename='jquery.showLoading.min.js') }}"></script>
+    <script type="text/javascript">
+
+        $('#submit').click(function () {
+            alert('??')
+            var params = {
+                'machine_room': $('#select_machine_room').val(),
+                'mac': $('#select_mac').val()
+            };
+
+            $('#self_delete_form').showLoading();
+
+            $.ajax({
+                type: "POST",          //提交方式          
+                url: "do_delete",  //提交的页面/方法名          
+                data: JSON.stringify(params, null, '\t'),         //参数（如果没有参数：null）          
+                contentType: "application/json; charset=utf-8",
+                success: function (msg) {
+                    if (msg.status === 'ok') {
+                        alert(msg.status);
+                        toastr.info(msg.result);
+                        $('#self_delete_form').hideLoading();
+                    }
+                    else {
+                        toastr.error(msg.result);
+                        $('#self_delete_form').hideLoading();
+                    }
+
+                },
+                error: function (xhr, msg, e) {
+                    toastr.error("删除失败");
+                    $('#autoregister_form').hideLoading();
+                }
+            });
+        });
+
+        // toastr options
+        toastr.options = {
+            "closeButton": true, //是否显示关闭按钮
+            "debug": false, //是否使用debug模式
+            "progressBar": false,
+            "positionClass": "toast-top-full-width",//弹出窗的位置
+            "showDuration": "300",//显示的动画时间
+            "hideDuration": "1000",//消失的动画时间
+            "timeOut": "20000", //展现时间
+            "extendedTimeOut": "1000",//加长展示时间
+            "showEasing": "swing",//显示时的动画缓冲方式
+            "hideEasing": "linear",//消失时的动画缓冲方式
+            "showMethod": "fadeIn",//显示时的动画方式
+            "hideMethod": "fadeOut" //消失时的动画方式
+        };
+    </script>
+{% endblock %}

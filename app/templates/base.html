@@ -32,12 +32,20 @@
                      <span class="icon-bar"></span>
                  </button>
                  <a class="navbar-brand" style="font-size: 16px" href="/">ONU注册</a>
-                 {% if current_user.is_snoc() %}
-                 <a class="navbar-brand" style="font-size: 16px" href="/manager_register">网管注册ONU</a>
-                 {% endif %}
              </div>
              <div class="navbar-collapse collapse">
                 <ul class="nav navbar-nav">
+
+                    <li class="dropdown" style="font-size: 16px">
+                        <a class="dropdown-toggle" href="#" data-toggle="dropdown">
+                            <span></span>
+                            自助服务 <strong class="caret"></strong>
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a href="/self_ont_delete">ONU删除</a></li>
+                                <li><a href="/register_new_ont">注册新ONU</a></li>
+                            </ul>
+                    </li>
                     <li class="dropdown" style="font-size: 16px">
                         <a class="dropdown-toggle" href="#" data-toggle="dropdown">
                             <span></span>
@@ -92,7 +100,7 @@
 </div>
 {% endblock %}
 
-{% block content %} 
+{% block content %}
 <div class="container">
     {% for message in get_flashed_messages() %}
     <div class="alert alert-warning">
@@ -146,4 +154,3 @@
         });
     </script>
 {% endblock %}
-
